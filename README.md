@@ -1,0 +1,1 @@
+# ai-crypto-trading-assistant
