@@ -12,6 +12,19 @@ def ping(): #ping() is a function that will be called when the endpoint is acces
     # This function returns a simple JSON response.
     #a JSON response is a way to send data in a structured format
     return {"message": "pong"}
+
+@app.route('/price') #another endpoint for price
+def price():
+    return{"symbol": "BTC", "price": 50000} #returns a JSON response with a symbol and price
+
+@app.route('/predict')
+def predict():
+    return {"symbol": "BTC", "prediction": "BTC will rise by 5% in the next hour"} 
+
+@app.route('/sentiment')
+def sentiment():
+    return {"symbol": "BTC", "sentiment": "positive", "score": 0.75}
+
 if __name__ == '__main__': #this line checks if the script is being run directly
     # If so, it starts the Flask application.
     app.run(debug=True)
