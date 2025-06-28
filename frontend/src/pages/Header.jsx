@@ -11,14 +11,14 @@ export default function Header() {
   ];
 
   return (
-    <header className="bg-white shadow border-b">
-      <nav className="max-w-6xl mx-auto px-6 py-4 flex justify-center gap-6 text-sm font-medium text-gray-700">
+    <header className="bg-slate-800 shadow border-b border-slate-700">
+      <nav className="max-w-6xl mx-auto px-6 py-4 flex justify-center gap-6 text-sm font-medium text-slate-300">
         {navLinks.map(({ path, label }) => (
           <Link
             key={path}
             to={path}
-            className={`transition duration-150 hover:text-blue-600 ${
-              pathname === path ? 'text-blue-600 font-semibold' : ''
+            className={`transition duration-150 hover:text-blue-400 ${
+              pathname === path ? 'text-blue-400 font-semibold' : ''
             }`}
           >
             {label}

@@ -3,13 +3,18 @@ import Footer from './Footer.jsx';
 
 export default function DashboardShell({ children }) {
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900">
+    <div className="min-h-screen flex flex-col bg-slate-900 text-slate-100">
+      {/* Top Navigation */}
       <Header />
 
-      <main className="flex-grow flex justify-center items-center px-4">
-        {children}
+      {/* Page Content */}
+      <main className="flex-grow px-4 py-8">
+        <div className="w-full max-w-6xl mx-auto">
+          {children}
+        </div>
       </main>
 
+      {/* Footer */}
       <Footer />
     </div>
   );

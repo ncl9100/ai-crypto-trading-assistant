@@ -14,18 +14,27 @@ export default function Predict() {
   }, [predict, setPredict]);
 
   return (
-    <div className="bg-white shadow-md rounded-xl p-8 max-w-xl w-full text-center">
-      <h2 className="text-2xl font-semibold mb-4 flex items-center justify-center gap-2">
-        Prediction
-      </h2>
-      {predict ? (
-        <p className="text-lg">
-          <span className="font-bold text-indigo-600">{predict.symbol}:</span>{' '}
-          {predict.prediction}
-        </p>
-      ) : (
-        <p className="text-gray-500 italic">Loading prediction...</p>
-      )}
+    <div className="w-full h-full">
+      <div className="bg-slate-800 rounded-xl shadow-lg p-6 w-full h-full text-center text-slate-100">
+        <h2 className="text-2xl font-semibold mb-4">Prediction</h2>
+
+        {predict ? (
+          <>
+            {predict.BTC && (
+              <p className="text-lg mb-2">
+                <span className="font-semibold text-amber-400">BTC:</span> {predict.BTC.prediction}
+              </p>
+            )}
+            {predict.ETH && (
+              <p className="text-lg">
+                <span className="font-semibold text-blue-400">ETH:</span> {predict.ETH.prediction}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-slate-400 italic">Loading prediction...</p>
+        )}
+      </div>
     </div>
   );
 }
