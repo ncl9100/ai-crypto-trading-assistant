@@ -6,3 +6,5 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
 })
+
+// This Vite configuration file sets up a React project with Tailwind CSS.

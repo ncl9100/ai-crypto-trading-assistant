@@ -31,3 +31,4 @@ export default [
     },
   },
 ]
+// This ESLint configuration is set up for a React project using Zustand for state management.

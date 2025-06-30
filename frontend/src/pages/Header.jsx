@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 
-export default function Header() {
+export default function Header() { // exporting makes it available for import in other files
   const { pathname } = useLocation();
 
   const navLinks = [

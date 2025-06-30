@@ -10,7 +10,7 @@ import time
 app = Flask(__name__)  # creates flask app named app
 CORS(app)  # enables CORS for the Flask app
 
-# 🔁 NEW: Cache variables to avoid CoinGecko rate limits
+# Cache variables to avoid CoinGecko rate limits
 cached_price = None
 last_fetched = 0
 CACHE_DURATION = 15  # duration (in seconds) to cache the API response
@@ -30,7 +30,7 @@ def price():
 
     now = time.time()
     if not cached_price or (now - last_fetched > CACHE_DURATION):
-        print("🔁 Fetching fresh price from CoinGecko...")
+        print("Fetching fresh price from CoinGecko...")
         url = 'https://api.coingecko.com/api/v3/simple/price'
         params = {  # this is stuff you're passing to the API
             'ids': 'bitcoin,ethereum',  # Cryptocurrency IDs
@@ -43,10 +43,10 @@ def price():
             cached_price = response.json()  # parses the JSON response from the API
             last_fetched = now  # update the time of last successful fetch
         except requests.exceptions.RequestException as e:
-            print("❌ CoinGecko error:", e)
+            print("CoinGecko error:", e)
             return jsonify({"error": "Failed to fetch price"}), 503
     else:
-        print("✅ Serving cached price")
+        print("Serving cached price")
 
     return jsonify(cached_price)  # returns the parsed data as a JSON response
 

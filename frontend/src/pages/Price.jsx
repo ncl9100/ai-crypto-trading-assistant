@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import axios from 'axios'; // axios is a javascript library for making HTTP requests
+//you can use it to fetch data, in this case from your Flask backend
+//difference between fetch and axios: fetch is a built-in browser API, while axios is a third-party library that provides a more powerful and flexible API for making HTTP requests
 import useDataStore from '../store/useDataStore';
 
 export default function Price() {
-  const { price, setPrice, lastUpdated } = useDataStore();
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { price, setPrice, lastUpdated } = useDataStore(); 
+  const [isRefreshing, setIsRefreshing] = useState(false); // creates state variable isRefreshing to track if the data is being refreshed
+  //default value is false
+  //setIsRefreshing is a function that updates the isRefreshing state variable
   const [timeSinceUpdate, setTimeSinceUpdate] = useState(0);
 
-  useEffect(() => {
+  useEffect(() => { // this effect tracks "time since last update"
     const interval = setInterval(() => {
       if (lastUpdated) {
         setTimeSinceUpdate(Math.floor((Date.now() - lastUpdated) / 1000));
@@ -53,7 +57,7 @@ export default function Price() {
           )}
           {lastUpdated && Date.now() - lastUpdated > 30000 && (
             <div className="text-red-400 text-xs mt-1">
-              ⚠️ Data is over 30 seconds old. Check your network or API limits.
+              Data is over 30 seconds old. Check your network or API limits.
             </div>
           )}
         </div>

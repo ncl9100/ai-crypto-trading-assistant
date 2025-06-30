@@ -36,7 +36,7 @@ function App() {
           }
         />
 
-        <Route path="/price" element={<Price />} />
+        <Route path="/price" element={<Price />} /> {/* react renders price component*/}
         <Route path="/predict" element={<Predict />} />
         <Route path="/sentiment" element={<Sentiment />} />
       </Routes>
@@ -44,4 +44,4 @@ function App() {
   );
 }
 
-export default App;
+export default App; // if another file imports this file, it will get the App component
