@@ -6,6 +6,10 @@ import requests
 # requests is a Python library for making HTTP requests.
 import time
 # time is used for caching the API response
+from sklearn.linear_model import LinearRegression
+import numpy as np
+from datetime import datetime, timedelta
+# ... existing code ...
 
 app = Flask(__name__)  # creates flask app named app
 CORS(app)  # enables CORS for the Flask app
@@ -14,6 +18,11 @@ CORS(app)  # enables CORS for the Flask app
 cached_price = None
 last_fetched = 0
 CACHE_DURATION = 15  # duration (in seconds) to cache the API response
+
+# Add cache for /predict endpoint
+predict_cache = None
+predict_cache_time = 0
+PREDICT_CACHE_DURATION = 60  # seconds
 
 @app.route('/ping')  # @ is a decorator,
 # ping is the endpoint that will respond to HTTP GET requests
@@ -52,17 +61,57 @@ def price():
 
 @app.route('/predict')
 def predict():
-    # Added Ethereum prediction alongside BTC
-    return {
-        "BTC": {
-            "symbol": "BTC",
-            "prediction": "Bitcoin will rise by 5% in the next hour"
-        },
-        "ETH": {
-            "symbol": "ETH",
-            "prediction": "Ethereum will rise by 3% in the next hour"
+    global predict_cache, predict_cache_time
+    now = time.time()
+    if predict_cache and (now - predict_cache_time < PREDICT_CACHE_DURATION):
+        return jsonify(predict_cache)
+    results = {}
+    for symbol, coingecko_id in [('BTC', 'bitcoin'), ('ETH', 'ethereum')]:
+        url = f'https://api.coingecko.com/api/v3/coins/{coingecko_id}/market_chart'
+        params = {
+            'vs_currency': 'usd',
+            'days': 30,
+            'interval': 'daily'
         }
-    }
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            prices = data.get('prices', [])
+            print(f"{symbol} data points: {len(prices)}")
+            if len(prices) < 2:
+                results[symbol] = {'error': 'Not enough data for prediction'}
+                continue
+            # Deduplicate by date: keep only the last price for each date
+            date_to_price = {}
+            for price in prices:
+                date_str = datetime.utcfromtimestamp(price[0] / 1000).strftime('%Y-%m-%d')
+                date_to_price[date_str] = price[1]  # overwrite, so last price for each date remains
+            dedup_dates = sorted(date_to_price.keys())
+            dedup_prices = [date_to_price[d] for d in dedup_dates]
+            # Append next day for prediction
+            last_date_obj = datetime.strptime(dedup_dates[-1], '%Y-%m-%d')
+            next_date_obj = last_date_obj + timedelta(days=1)
+            next_date = next_date_obj.strftime('%Y-%m-%d')
+            dedup_dates.append(next_date)
+            model = LinearRegression()
+            X = np.arange(len(dedup_prices)).reshape(-1, 1)
+            y = np.array(dedup_prices)
+            model.fit(X, y)
+            next_day = np.array([[len(dedup_prices)]])
+            predicted_price = model.predict(next_day)[0]
+            results[symbol] = {
+                'symbol': symbol,
+                'history': y.tolist(),
+                'dates': dedup_dates,
+                'predicted_price': float(predicted_price)
+            }
+        except Exception as e:
+            print(f'Prediction error for {symbol}:', e)
+            results[symbol] = {'error': 'Prediction failed'}
+    predict_cache = results
+    predict_cache_time = now
+    return jsonify(results)
 
 @app.route('/sentiment')
 def sentiment():
