@@ -3,6 +3,7 @@ import DashboardShell from './pages/DashboardShell.jsx';
 import Price from './pages/Price.jsx';
 import Predict from './pages/Predict.jsx';
 import Sentiment from './pages/Sentiment.jsx';
+import AverageSentimentCard from './pages/AverageSentimentCard.jsx';
 import { FaChartLine } from 'react-icons/fa'; // Icon for dashboard title
 import MiniTrendChart from './pages/MiniTrendChart.jsx';
 import React, { useEffect, useState } from 'react';
@@ -158,7 +159,7 @@ function App() {
                   </div>
                 </div>
                 <div className="w-full max-w-md min-h-[250px]">
-                  <Sentiment />
+                  <AverageSentimentCard />
                 </div>
               </div>
             </div>
