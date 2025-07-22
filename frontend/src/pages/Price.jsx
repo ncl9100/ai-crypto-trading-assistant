@@ -1,17 +1,14 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios'; // axios is a javascript library for making HTTP requests
-//you can use it to fetch data, in this case from your Flask backend
-//difference between fetch and axios: fetch is a built-in browser API, while axios is a third-party library that provides a more powerful and flexible API for making HTTP requests
+import axios from 'axios';
 import useDataStore from '../store/useDataStore';
 
 export default function Price() {
   const { price, setPrice, lastUpdated } = useDataStore(); 
-  const [isRefreshing, setIsRefreshing] = useState(false); // creates state variable isRefreshing to track if the data is being refreshed
-  //default value is false
-  //setIsRefreshing is a function that updates the isRefreshing state variable
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [timeSinceUpdate, setTimeSinceUpdate] = useState(0);
+  const [recommendation, setRecommendation] = useState(null);
 
-  useEffect(() => { // this effect tracks "time since last update"
+  useEffect(() => {
     const interval = setInterval(() => {
       if (lastUpdated) {
         setTimeSinceUpdate(Math.floor((Date.now() - lastUpdated) / 1000));
@@ -41,6 +38,12 @@ export default function Price() {
     fetchPrices();
     const interval = setInterval(fetchPrices, 10000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    axios.get('http://localhost:5000/recommendation')
+      .then(res => setRecommendation(res.data))
+      .catch(() => setRecommendation(null));
   }, []);
 
   return (
@@ -79,10 +82,39 @@ export default function Price() {
         ) : (
           <p className="text-slate-400 italic">Loading...</p>
         )}
+
+        {/* Recommendation Section */}
+        {recommendation && (
+          <div className="mt-6">
+            <h3 className="text-xl font-bold mb-2">Strategy Recommendation</h3>
+            <div className="flex flex-col gap-3 items-center">
+              {['BTC', 'ETH'].map(symbol => (
+                <div key={symbol} className="bg-slate-700 rounded p-3 w-full max-w-md">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold">{symbol}</span>
+                    <span className={
+                      recommendation[symbol].recommendation === "Buy"
+                        ? "text-green-400 font-bold"
+                        : recommendation[symbol].recommendation === "Sell"
+                        ? "text-red-400 font-bold"
+                        : "text-yellow-400 font-bold"
+                    }>
+                      {recommendation[symbol].recommendation}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-300 mt-1">
+                    Sentiment: {recommendation[symbol].sentiment?.toFixed(3)} | 
+                    24h Δ: {(recommendation[symbol].price_delta * 100).toFixed(2)}%
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// This component fetches live cryptocurrency prices from the backend and displays them.
+// This component fetches live cryptocurrency prices and strategy recommendations from the backend and displays them.
 // It uses Zustand for state management and Axios for HTTP requests.

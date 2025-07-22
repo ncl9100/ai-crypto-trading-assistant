@@ -42,16 +42,26 @@ CORS(app)  # enables CORS for the Flask app
 # Cache variables to avoid CoinGecko rate limits
 cached_price = None
 last_fetched = 0
-CACHE_DURATION = 15  # duration (in seconds) to cache the API response
+CACHE_DURATION = 60  # duration (in seconds) to cache the API response
 
 # Add cache for /predict endpoint
 predict_cache = None
 predict_cache_time = 0
-PREDICT_CACHE_DURATION = 60  # seconds
+PREDICT_CACHE_DURATION = 120  # seconds
+
+# Cache for /recommendation endpoint
+recommendation_cache = None
+recommendation_cache_time = 0
+RECOMMENDATION_CACHE_DURATION = 60  # seconds
 
 # Load environment variables from .env file
 # Why: Keeps your secrets (API keys, passwords) out of your codebase
 load_dotenv()
+
+# Set cache durations (top of file)
+CACHE_DURATION = 60
+RECOMMENDATION_CACHE_DURATION = 60
+HISTORICAL_CACHE_DURATION = 3600  # 1 hour
 
 # Set up Reddit API client using credentials from .env
 # Why: Authenticates your app with Reddit so you can fetch posts programmatically
@@ -151,24 +161,19 @@ def price():
 
     now = time.time()
     if not cached_price or (now - last_fetched > CACHE_DURATION):
-        print("Fetching fresh price from CoinGecko...")
+        print("Fetching fresh price from CoinGecko (from /price)...")
         url = 'https://api.coingecko.com/api/v3/simple/price'
-        params = {  # this is stuff you're passing to the API
-            'ids': 'bitcoin,ethereum',  # Cryptocurrency IDs
-            # ids are unique identifiers for cryptocurrencies
-            'vs_currencies': 'usd'  # Price in USD
-        }
+        params = {'ids': 'bitcoin,ethereum', 'vs_currencies': 'usd'}
         try:
-            response = requests.get(url, params=params)  # makes a GET request to the specified URL with the given parameters
-            response.raise_for_status()  # raises an error if the request failed (e.g., rate limited)
-            cached_price = response.json()  # parses the JSON response from the API
-            last_fetched = now  # update the time of last successful fetch
-        except requests.exceptions.RequestException as e:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            cached_price = response.json()
+            last_fetched = now
+        except Exception as e:
             print("CoinGecko error:", e)
             return jsonify({"error": "Failed to fetch price"}), 503
     else:
-        print("Serving cached price")
-
+        print("Serving cached price (from /price)")
     return jsonify(cached_price)  # returns the parsed data as a JSON response
 
 @app.route('/predict')
@@ -279,6 +284,125 @@ def test_reddit():
     """
     headlines = get_reddit_headlines('Bitcoin', limit=5)
     return jsonify(headlines)
+
+# Store previous prices in memory for BTC and ETH
+previous_prices = {"bitcoin": None, "ethereum": None}
+
+# Add these global variables near your other caches
+historical_price_cache = {"bitcoin": None, "ethereum": None}
+historical_price_cache_time = {"bitcoin": 0, "ethereum": 0}
+HISTORICAL_CACHE_DURATION = 3600  # 1 hour for historical price
+
+def get_price_24h_ago_cached(coin_id):
+    now = time.time()
+    # Use cache if not expired
+    if (historical_price_cache[coin_id] is not None and
+        now - historical_price_cache_time[coin_id] < HISTORICAL_CACHE_DURATION):
+        return historical_price_cache[coin_id]
+    # Otherwise, fetch and cache
+    day_ago = int(now) - 24*60*60
+    url = f'https://api.coingecko.com/api/v3/coins/{coin_id}/market_chart/range'
+    params = {
+        'vs_currency': 'usd',
+        'from': day_ago,
+        'to': int(now)
+    }
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        prices = data.get('prices', [])
+        if not prices:
+            print(f"No historical prices returned for {coin_id}")
+            return None
+        closest = min(prices, key=lambda x: abs(x[0]/1000 - day_ago))
+        historical_price_cache[coin_id] = closest[1]
+        historical_price_cache_time[coin_id] = now
+        return closest[1]
+    except Exception as e:
+        print(f"Error fetching historical price for {coin_id}: {e}")
+        return None
+
+@app.route('/recommendation')
+def recommendation():
+    global recommendation_cache, recommendation_cache_time, cached_price, last_fetched
+    now = time.time()
+    if recommendation_cache and (now - recommendation_cache_time < RECOMMENDATION_CACHE_DURATION):
+        return jsonify(recommendation_cache)
+
+    # Use shared cached price for both BTC and ETH
+    if not cached_price or (now - last_fetched > CACHE_DURATION):
+        print("Fetching fresh price from CoinGecko (from /recommendation)...")
+        url = 'https://api.coingecko.com/api/v3/simple/price'
+        params = {'ids': 'bitcoin,ethereum', 'vs_currencies': 'usd'}
+        try:
+            response = requests.get(url, params=params)
+            response.raise_for_status()
+            cached_price = response.json()
+            last_fetched = now
+        except Exception as e:
+            print("CoinGecko error:", e)
+            return jsonify({"error": "Failed to fetch price"}), 503
+    else:
+        print("Serving cached price (from /recommendation)")
+    btc_price = cached_price['bitcoin']['usd']
+    eth_price = cached_price['ethereum']['usd']
+
+    # Get price 24h ago for both BTC and ETH
+    btc_prev = get_price_24h_ago_cached('bitcoin')
+    eth_prev = get_price_24h_ago_cached('ethereum')
+    print(f"BTC current: {btc_price}, BTC prev: {btc_prev}")
+    print(f"ETH current: {eth_price}, ETH prev: {eth_prev}")
+
+    btc_delta = (btc_price - btc_prev) / btc_prev if btc_prev else None
+    eth_delta = (eth_price - eth_prev) / eth_prev if eth_prev else None
+
+    # If historical price is missing, set delta to None and log a warning
+    if btc_prev is None:
+        print("Warning: BTC historical price missing, delta set to None")
+    if eth_prev is None:
+        print("Warning: ETH historical price missing, delta set to None")
+
+    # Get sentiment for both BTC and ETH
+    btc_headlines = get_reddit_headlines('Bitcoin', limit=10)
+    eth_headlines = get_reddit_headlines('Ethereum', limit=10)
+    coindesk_headlines = get_rss_headlines('https://feeds.feedburner.com/CoinDesk', limit=10)
+    cointelegraph_headlines = get_rss_headlines('https://cointelegraph.com/rss', limit=10)
+    btc_sentiment = analyze_headlines_sentiment(btc_headlines + coindesk_headlines + cointelegraph_headlines)['average']
+    eth_sentiment = analyze_headlines_sentiment(eth_headlines + coindesk_headlines + cointelegraph_headlines)['average']
+
+    def get_recommendation(sentiment, delta):
+        if delta is None:
+            return "Hold"
+        if sentiment > 0.5 and delta > 0:
+            return "Buy"
+        elif sentiment < -0.5 and delta < 0:
+            return "Sell"
+        else:
+            return "Hold"
+
+    btc_recommendation = get_recommendation(btc_sentiment, btc_delta)
+    eth_recommendation = get_recommendation(eth_sentiment, eth_delta)
+
+    result = {
+        "BTC": {
+            "recommendation": btc_recommendation,
+            "sentiment": btc_sentiment,
+            "price_delta": btc_delta,
+            "current_price": btc_price,
+            "previous_price": btc_prev
+        },
+        "ETH": {
+            "recommendation": eth_recommendation,
+            "sentiment": eth_sentiment,
+            "price_delta": eth_delta,
+            "current_price": eth_price,
+            "previous_price": eth_prev
+        }
+    }
+    recommendation_cache = result
+    recommendation_cache_time = now
+    return jsonify(result)
 
 if __name__ == '__main__':  # this line checks if the script is being run directly
     # If so, it starts the Flask application.
