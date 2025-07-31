@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -54,13 +55,30 @@ const getYAxisRange = (dataArr) => {
 const Predict = () => {
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState('BTC');
+  const [error, setError] = useState(null);
+  const { getAuthHeaders } = useAuth();
 
   useEffect(() => {
-    axios.get('http://localhost:5000/predict')
-      .then(res => setData(res.data))
-      .catch(err => console.error(err));
-  }, []);
+    const headers = getAuthHeaders();
+    console.log('Sending request with headers:', headers);
+    
+    axios.get('http://localhost:5000/predict', {
+      headers: headers
+    })
+      .then(res => {
+        console.log('Predict API response:', res.data);
+        setData(res.data);
+        setError(null);
+      })
+      .catch(err => {
+        console.error('Predict API error:', err.response?.data || err.message);
+        console.error('Response status:', err.response?.status);
+        setError(err.response?.data?.error || 'Failed to load prediction data');
+        setData(null);
+      });
+  }, [getAuthHeaders]);
 
+  if (error) return <div className="text-red-400">Error: {error}</div>;
   if (!data) return <div>Loading...</div>;
 
   // Prepare labels: use dates from backend, format as 'MMM D'

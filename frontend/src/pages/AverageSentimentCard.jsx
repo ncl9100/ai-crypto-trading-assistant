@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useAuth } from '../context/AuthContext';
 
 function scoreToPercent(score) {
   return Math.round(((score + 1) / 2) * 100);
@@ -19,9 +20,12 @@ function SentimentBar({ score, colorClass }) {
 export default function AverageSentimentCard() {
   const [sentiment, setSentiment] = useState(null);
   const [error, setError] = useState(null);
+  const { getAuthHeaders } = useAuth();
 
   useEffect(() => {
-    fetch('http://127.0.0.1:5000/sentiment')
+    fetch('http://127.0.0.1:5000/sentiment', {
+      headers: getAuthHeaders()
+    })
       .then(res => {
         if (!res.ok) throw new Error('Network response was not ok');
         return res.json();
@@ -34,7 +38,7 @@ export default function AverageSentimentCard() {
         setError('Unable to load sentiment data. Please try again later.');
         setSentiment(null);
       });
-  }, []);
+  }, [getAuthHeaders]);
 
   function getOverallAverage(coin) {
     if (!sentiment || !sentiment[coin]) return 0;

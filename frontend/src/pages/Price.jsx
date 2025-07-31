@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import useDataStore from '../store/useDataStore';
+import { useAuth } from '../context/AuthContext';
 
 export default function Price() {
   const { price, setPrice, lastUpdated } = useDataStore(); 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [timeSinceUpdate, setTimeSinceUpdate] = useState(0);
   const [recommendation, setRecommendation] = useState(null);
+  const { getAuthHeaders } = useAuth();
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -21,7 +23,9 @@ export default function Price() {
     const fetchPrices = async () => {
       setIsRefreshing(true);
       try {
-        const res = await axios.get('http://127.0.0.1:5000/price');
+        const res = await axios.get('http://127.0.0.1:5000/price', {
+          headers: getAuthHeaders()
+        });
 
         if (res.data?.bitcoin && res.data?.ethereum) {
           setPrice(res.data);
@@ -38,13 +42,15 @@ export default function Price() {
     fetchPrices();
     const interval = setInterval(fetchPrices, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [getAuthHeaders]);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/recommendation')
+    axios.get('http://localhost:5000/recommendation', {
+      headers: getAuthHeaders()
+    })
       .then(res => setRecommendation(res.data))
       .catch(() => setRecommendation(null));
-  }, []);
+  }, [getAuthHeaders]);
 
   return (
     <div className="w-full h-full">

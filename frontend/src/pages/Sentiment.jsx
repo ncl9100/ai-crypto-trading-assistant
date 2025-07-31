@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import useDataStore from '../store/useDataStore';
+import { useAuth } from '../context/AuthContext';
 
 // Helper to map score (-1 to 1) to percent (0 to 100)
 function scoreToPercent(score) {
@@ -36,10 +37,13 @@ function SentimentSource({ label, score, colorClass }) {
 export default function Sentiment() {
   const { sentiment, setSentiment } = useDataStore();
   const [error, setError] = useState(null);
+  const { getAuthHeaders } = useAuth();
 
   useEffect(() => {
     if (!sentiment) {
-      fetch('http://127.0.0.1:5000/sentiment')
+      fetch('http://127.0.0.1:5000/sentiment', {
+        headers: getAuthHeaders()
+      })
         .then(res => {
           if (!res.ok) throw new Error('Network response was not ok');
           return res.json();
@@ -53,7 +57,7 @@ export default function Sentiment() {
           setSentiment(null);
         });
     }
-  }, [sentiment, setSentiment]);
+  }, [sentiment, setSentiment, getAuthHeaders]);
 
   return (
     <div className="w-full h-full">

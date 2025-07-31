@@ -9,15 +9,25 @@ import MiniTrendChart from './pages/MiniTrendChart.jsx';
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { format, parseISO } from 'date-fns';
+import Login from './pages/Login.jsx';
+import Register from './pages/Register.jsx';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
+import { AuthProvider, useAuth } from './context/AuthContext.jsx';
+import Historical from './pages/Historical.jsx';
 
-function App() {
+function AppContent() {
   // Prepare BTC and ETH chart data for dashboard card
   const [btcChartData, setBtcChartData] = useState(null);
   const [ethChartData, setEthChartData] = useState(null);
   const [activeDashboardTab, setActiveDashboardTab] = useState('BTC');
+  const { isAuthenticated, getAuthHeaders } = useAuth();
 
   useEffect(() => {
-    axios.get('http://localhost:5000/predict')
+    if (!isAuthenticated()) return;
+    
+    axios.get('http://localhost:5000/predict', {
+      headers: getAuthHeaders()
+    })
       .then(res => {
         const data = res.data;
         // BTC
@@ -105,72 +115,86 @@ function App() {
         setBtcChartData(null);
         setEthChartData(null);
       });
-  }, []);
+  }, [isAuthenticated, getAuthHeaders]);
 
   return (
     <DashboardShell>
       <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        
         <Route
           path="/"
           element={
-            <div className="p-6 md:p-10 text-center text-slate-100">
-              <h1 className="text-4xl font-bold flex items-center justify-center gap-3 mb-2">
-                <FaChartLine className="text-indigo-400" />
-                Crypto Dashboard
-              </h1>
-              <p className="text-slate-400 mb-8 text-sm md:text-base">
-                Your AI-powered assistant for real-time crypto insights
-              </p>
+            <ProtectedRoute>
+              <div className="p-6 md:p-10 text-center text-slate-100">
+                <h1 className="text-4xl font-bold flex items-center justify-center gap-3 mb-2">
+                  <FaChartLine className="text-indigo-400" />
+                  Crypto Dashboard
+                </h1>
+                <p className="text-slate-400 mb-8 text-sm md:text-base">
+                  Your AI-powered assistant for real-time crypto insights
+                </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center max-w-7xl mx-auto">
-                <div className="w-full max-w-md min-h-[250px]">
-                  <Price />
-                </div>
-                <div className="w-full max-w-md min-h-[250px]">
-                  <div className="bg-slate-800 rounded-xl shadow-lg p-6 w-full h-full text-center text-slate-100 flex flex-col items-center justify-center">
-                    <h2 className="text-2xl font-semibold mb-4">Price Trend & Next-Day Prediction</h2>
-                    <div className="flex justify-center mb-4">
-                      <button
-                        className={`px-6 py-2 rounded-t-lg font-semibold focus:outline-none transition-colors duration-200 ${activeDashboardTab === 'BTC' ? 'bg-slate-700 text-amber-400' : 'bg-slate-900 text-slate-300'}`}
-                        onClick={() => setActiveDashboardTab('BTC')}
-                      >
-                        BTC
-                      </button>
-                      <button
-                        className={`px-6 py-2 rounded-t-lg font-semibold focus:outline-none transition-colors duration-200 ${activeDashboardTab === 'ETH' ? 'bg-slate-700 text-blue-400' : 'bg-slate-900 text-slate-300'}`}
-                        onClick={() => setActiveDashboardTab('ETH')}
-                      >
-                        ETH
-                      </button>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center max-w-7xl mx-auto">
+                  <div className="w-full max-w-md min-h-[250px]">
+                    <Price />
+                  </div>
+                  <div className="w-full max-w-md min-h-[250px]">
+                    <div className="bg-slate-800 rounded-xl shadow-lg p-6 w-full h-full text-center text-slate-100 flex flex-col items-center justify-center">
+                      <h2 className="text-2xl font-semibold mb-4">Price Trend & Next-Day Prediction</h2>
+                      <div className="flex justify-center mb-4">
+                        <button
+                          className={`px-6 py-2 rounded-t-lg font-semibold focus:outline-none transition-colors duration-200 ${activeDashboardTab === 'BTC' ? 'bg-slate-700 text-amber-400' : 'bg-slate-900 text-slate-300'}`}
+                          onClick={() => setActiveDashboardTab('BTC')}
+                        >
+                          BTC
+                        </button>
+                        <button
+                          className={`px-6 py-2 rounded-t-lg font-semibold focus:outline-none transition-colors duration-200 ${activeDashboardTab === 'ETH' ? 'bg-slate-700 text-blue-400' : 'bg-slate-900 text-slate-300'}`}
+                          onClick={() => setActiveDashboardTab('ETH')}
+                        >
+                          ETH
+                        </button>
+                      </div>
+                      {activeDashboardTab === 'BTC' ? (
+                        btcChartData ? (
+                          <MiniTrendChart data={btcChartData} />
+                        ) : (
+                          <div className="text-slate-400 italic">Loading...</div>
+                        )
+                      ) : (
+                        ethChartData ? (
+                          <MiniTrendChart data={ethChartData} />
+                        ) : (
+                          <div className="text-slate-400 italic">Loading...</div>
+                        )
+                      )}
                     </div>
-                    {activeDashboardTab === 'BTC' ? (
-                      btcChartData ? (
-                        <MiniTrendChart data={btcChartData} />
-                      ) : (
-                        <div className="text-slate-400 italic">Loading...</div>
-                      )
-                    ) : (
-                      ethChartData ? (
-                        <MiniTrendChart data={ethChartData} />
-                      ) : (
-                        <div className="text-slate-400 italic">Loading...</div>
-                      )
-                    )}
+                  </div>
+                  <div className="w-full max-w-md min-h-[250px]">
+                    <AverageSentimentCard />
                   </div>
                 </div>
-                <div className="w-full max-w-md min-h-[250px]">
-                  <AverageSentimentCard />
-                </div>
               </div>
-            </div>
+            </ProtectedRoute>
           }
         />
 
-        <Route path="/price" element={<Price />} /> {/* react renders price component*/}
-        <Route path="/predict" element={<Predict />} />
-        <Route path="/sentiment" element={<Sentiment />} />
+        <Route path="/price" element={<ProtectedRoute><Price /></ProtectedRoute>} />
+        <Route path="/predict" element={<ProtectedRoute><Predict /></ProtectedRoute>} />
+        <Route path="/sentiment" element={<ProtectedRoute><Sentiment /></ProtectedRoute>} />
+        <Route path="/historical" element={<ProtectedRoute><Historical /></ProtectedRoute>} />
       </Routes>
     </DashboardShell>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
