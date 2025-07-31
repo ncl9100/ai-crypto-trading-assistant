@@ -41,7 +41,7 @@ export default function Sentiment() {
 
   useEffect(() => {
     if (!sentiment) {
-      fetch('http://127.0.0.1:5000/sentiment', {
+      fetch('http://localhost:5000/sentiment', {
         headers: getAuthHeaders()
       })
         .then(res => {

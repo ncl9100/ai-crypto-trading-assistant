@@ -23,7 +23,7 @@ export default function AverageSentimentCard() {
   const { getAuthHeaders } = useAuth();
 
   useEffect(() => {
-    fetch('http://127.0.0.1:5000/sentiment', {
+    fetch('http://localhost:5000/sentiment', {
       headers: getAuthHeaders()
     })
       .then(res => {

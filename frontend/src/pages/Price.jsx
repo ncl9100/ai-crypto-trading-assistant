@@ -7,7 +7,6 @@ export default function Price() {
   const { price, setPrice, lastUpdated } = useDataStore(); 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [timeSinceUpdate, setTimeSinceUpdate] = useState(0);
-  const [recommendation, setRecommendation] = useState(null);
   const { getAuthHeaders } = useAuth();
 
   useEffect(() => {
@@ -23,7 +22,7 @@ export default function Price() {
     const fetchPrices = async () => {
       setIsRefreshing(true);
       try {
-        const res = await axios.get('http://127.0.0.1:5000/price', {
+        const res = await axios.get('http://localhost:5000/price', {
           headers: getAuthHeaders()
         });
 
@@ -42,14 +41,6 @@ export default function Price() {
     fetchPrices();
     const interval = setInterval(fetchPrices, 10000);
     return () => clearInterval(interval);
-  }, [getAuthHeaders]);
-
-  useEffect(() => {
-    axios.get('http://localhost:5000/recommendation', {
-      headers: getAuthHeaders()
-    })
-      .then(res => setRecommendation(res.data))
-      .catch(() => setRecommendation(null));
   }, [getAuthHeaders]);
 
   return (
@@ -88,39 +79,7 @@ export default function Price() {
         ) : (
           <p className="text-slate-400 italic">Loading...</p>
         )}
-
-        {/* Recommendation Section */}
-        {recommendation && (
-          <div className="mt-6">
-            <h3 className="text-xl font-bold mb-2">Strategy Recommendation</h3>
-            <div className="flex flex-col gap-3 items-center">
-              {['BTC', 'ETH'].map(symbol => (
-                <div key={symbol} className="bg-slate-700 rounded p-3 w-full max-w-md">
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold">{symbol}</span>
-                    <span className={
-                      recommendation[symbol].recommendation === "Buy"
-                        ? "text-green-400 font-bold"
-                        : recommendation[symbol].recommendation === "Sell"
-                        ? "text-red-400 font-bold"
-                        : "text-yellow-400 font-bold"
-                    }>
-                      {recommendation[symbol].recommendation}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-300 mt-1">
-                    Sentiment: {recommendation[symbol].sentiment?.toFixed(3)} | 
-                    24h Δ: {(recommendation[symbol].price_delta * 100).toFixed(2)}%
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
 }
-
-// This component fetches live cryptocurrency prices and strategy recommendations from the backend and displays them.
-// It uses Zustand for state management and Axios for HTTP requests.

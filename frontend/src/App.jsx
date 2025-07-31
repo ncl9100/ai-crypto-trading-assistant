@@ -14,6 +14,7 @@ import Register from './pages/Register.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import Historical from './pages/Historical.jsx';
+import Recommendation from './pages/Recommendation.jsx';
 
 function AppContent() {
   // Prepare BTC and ETH chart data for dashboard card
@@ -185,6 +186,7 @@ function AppContent() {
         <Route path="/predict" element={<ProtectedRoute><Predict /></ProtectedRoute>} />
         <Route path="/sentiment" element={<ProtectedRoute><Sentiment /></ProtectedRoute>} />
         <Route path="/historical" element={<ProtectedRoute><Historical /></ProtectedRoute>} />
+        <Route path="/recommendation" element={<ProtectedRoute><Recommendation /></ProtectedRoute>} />
       </Routes>
     </DashboardShell>
   );

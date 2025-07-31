@@ -12,6 +12,7 @@ export default function Header() { // exporting makes it available for import in
     { path: '/predict', label: 'Predict' },
     { path: '/sentiment', label: 'Sentiment' },
     { path: '/historical', label: 'Historical' },
+    { path: '/recommendation', label: 'Recommendation' },
   ];
 
   return (
