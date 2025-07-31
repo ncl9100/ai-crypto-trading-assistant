@@ -270,7 +270,7 @@ def register():
         'created_at': datetime.utcnow().isoformat()
     }
     
-    # Generate token
+    # Generate token nn
     token = generate_token(user_id)
     
     logger.info(f"New user registered: {email}")
