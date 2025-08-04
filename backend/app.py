@@ -488,7 +488,17 @@ def predict():
     
     logger.info("Generating fresh predictions...")
     results = {}
-    
+
+    # Get cached sentiment data (from /sentiment endpoint)
+    sentiment_data = api_cache.get("sentiment_data")
+    if not sentiment_data:
+        logger.warning("Sentiment data not cached, fetching fresh sentiment...")
+        sentiment_response = sentiment()
+        if hasattr(sentiment_response, "get_json"):
+            sentiment_data = sentiment_response.get_json()
+        else:
+            sentiment_data = sentiment_response
+
     for symbol, coingecko_id in [('BTC', 'bitcoin'), ('ETH', 'ethereum')]:
         logger.info(f"Fetching data for {symbol} ({coingecko_id})...")
         url = f'https://api.coingecko.com/api/v3/coins/{coingecko_id}/market_chart'
@@ -505,11 +515,7 @@ def predict():
             results[symbol] = {'error': 'Prediction failed'}
             continue
         
-        logger.info(f"Successfully fetched data for {symbol}")
-        
         prices = response_data.get('prices', [])
-        logger.info(f"{symbol} data points: {len(prices)}")
-        
         if len(prices) < 2:
             results[symbol] = {'error': 'Not enough data for prediction'}
             continue
@@ -518,31 +524,44 @@ def predict():
         date_to_price = {}
         for price in prices:
             date_str = datetime.utcfromtimestamp(price[0] / 1000).strftime('%Y-%m-%d')
-            date_to_price[date_str] = price[1]  # overwrite, so last price for each date remains
-        
+            date_to_price[date_str] = price[1]
         dedup_dates = sorted(date_to_price.keys())
         dedup_prices = [date_to_price[d] for d in dedup_dates]
-        
+
+        # --- Get average sentiment for this coin from cached sentiment_data ---
+        sent_block = sentiment_data.get(symbol, {})
+        sent_scores = []
+        for src in ["reddit_sentiment", "coindesk_sentiment", "cointelegraph_sentiment"]:
+            if src in sent_block and "average" in sent_block[src]:
+                sent_scores.append(sent_block[src]["average"])
+        sentiment = float(np.mean(sent_scores)) if sent_scores else 0.0
+
+        # --- Prepare features: day index and sentiment ---
+        X = np.column_stack([
+            np.arange(len(dedup_prices)),           # day index
+            np.full(len(dedup_prices), sentiment)   # use latest sentiment for all days
+        ])
+        y = np.array(dedup_prices)
+
         # Append next day for prediction
         last_date_obj = datetime.strptime(dedup_dates[-1], '%Y-%m-%d')
         next_date_obj = last_date_obj + timedelta(days=1)
         next_date = next_date_obj.strftime('%Y-%m-%d')
         dedup_dates.append(next_date)
-        
+
         model = LinearRegression()
-        X = np.arange(len(dedup_prices)).reshape(-1, 1)
-        y = np.array(dedup_prices)
         model.fit(X, y)
-        next_day = np.array([[len(dedup_prices)]])
+        next_day = np.array([[len(dedup_prices), sentiment]])
         predicted_price = model.predict(next_day)[0]
-        
+
         results[symbol] = {
             'symbol': symbol,
             'history': y.tolist(),
             'dates': dedup_dates,
+            'sentiment': sentiment,
             'predicted_price': float(predicted_price)
         }
-    
+
     api_cache.set(cache_key, results, 'predict')
     return jsonify(results)
 
@@ -603,7 +622,7 @@ def sentiment():
     }
     
     api_cache.set(cache_key, result, 'recommendation')
-    return result
+    return jsonify(result)  # <-- FIXED: always return JSON
 
 # Temporary route to test Reddit API integration
 # Why: Lets you quickly verify that your credentials and helper function work before integrating into main app logic
@@ -661,52 +680,50 @@ def recommendation():
         return jsonify(cached_result)
     
     logger.info("Generating fresh recommendations...")
-    
-    # Get current prices
+
+    # Use cached price data
     price_cache_key = "current_prices"
     cached_prices = api_cache.get(price_cache_key)
-    
     if not cached_prices:
         url = 'https://api.coingecko.com/api/v3/simple/price'
         params = {'ids': 'bitcoin,ethereum', 'vs_currencies': 'usd'}
-        
         response_data, error = request_handler.make_request(url, params=params)
-        
         if error:
             logger.error(f"CoinGecko error: {error}")
             return jsonify({"error": "Failed to fetch price"}), 503
-        
         api_cache.set(price_cache_key, response_data, 'price')
         cached_prices = response_data
-    
+
     btc_price = cached_prices['bitcoin']['usd']
     eth_price = cached_prices['ethereum']['usd']
-    
-    # Get price 24h ago for both BTC and ETH
+
+    # Use cached historical prices
     btc_prev = get_price_24h_ago_cached('bitcoin')
     eth_prev = get_price_24h_ago_cached('ethereum')
-    
-    logger.info(f"BTC current: {btc_price}, BTC prev: {btc_prev}")
-    logger.info(f"ETH current: {eth_price}, ETH prev: {eth_prev}")
-    
+
     btc_delta = (btc_price - btc_prev) / btc_prev if btc_prev else None
     eth_delta = (eth_price - eth_prev) / eth_prev if eth_prev else None
-    
-    # If historical price is missing, set delta to None and log a warning
-    if btc_prev is None:
-        logger.warning("Warning: BTC historical price missing, delta set to None")
-    if eth_prev is None:
-        logger.warning("Warning: ETH historical price missing, delta set to None")
-    
-    # Get sentiment for both BTC and ETH
-    btc_headlines = get_reddit_headlines('Bitcoin', limit=10)
-    eth_headlines = get_reddit_headlines('Ethereum', limit=10)
-    coindesk_headlines = get_rss_headlines('https://feeds.feedburner.com/CoinDesk', limit=10)
-    cointelegraph_headlines = get_rss_headlines('https://cointelegraph.com/rss', limit=10)
-    
-    btc_sentiment = analyze_headlines_sentiment(btc_headlines + coindesk_headlines + cointelegraph_headlines)['average']
-    eth_sentiment = analyze_headlines_sentiment(eth_headlines + coindesk_headlines + cointelegraph_headlines)['average']
-    
+
+    # Use cached sentiment data
+    sentiment_data = api_cache.get("sentiment_data")
+    if not sentiment_data:
+        logger.warning("Sentiment data not cached, fetching fresh sentiment...")
+        sentiment_response = sentiment()
+        if hasattr(sentiment_response, "get_json"):
+            sentiment_data = sentiment_response.get_json()
+        else:
+            sentiment_data = sentiment_response
+
+    def get_avg_sentiment(sent_block):
+        sent_scores = []
+        for src in ["reddit_sentiment", "coindesk_sentiment", "cointelegraph_sentiment"]:
+            if src in sent_block and "average" in sent_block[src]:
+                sent_scores.append(sent_block[src]["average"])
+        return float(np.mean(sent_scores)) if sent_scores else 0.0
+
+    btc_sentiment = get_avg_sentiment(sentiment_data.get("BTC", {}))
+    eth_sentiment = get_avg_sentiment(sentiment_data.get("ETH", {}))
+
     def get_recommendation(sentiment: float, delta: Optional[float]) -> str:
         if delta is None:
             return "Hold"
@@ -716,10 +733,10 @@ def recommendation():
             return "Sell"
         else:
             return "Hold"
-    
+
     btc_recommendation = get_recommendation(btc_sentiment, btc_delta)
     eth_recommendation = get_recommendation(eth_sentiment, eth_delta)
-    
+
     result = {
         "BTC": {
             "recommendation": btc_recommendation,
@@ -736,122 +753,82 @@ def recommendation():
             "previous_price": eth_prev
         }
     }
-    
+
     api_cache.set(cache_key, result, 'recommendation')
     return jsonify(result)
 
 @app.route('/historical')
 @require_auth
 def historical():
-    """Fetch price history for BTC and ETH with configurable timeframe."""
+    """Fetch price history for BTC and ETH with configurable timeframe, using a single 1y fetch per coin."""
     timeframe = request.args.get('timeframe', '7d')
-    
-    # Map timeframe to days
     timeframe_map = {
         '7d': 7,
         '30d': 30,
         '6m': 180,
         '1y': 365
     }
-    
-    days = timeframe_map.get(timeframe, 7)
-    cache_key = f"historical_data_{timeframe}"
-    cached_result = api_cache.get(cache_key)
-    
-    if cached_result:
-        logger.info(f"Serving cached historical data for {timeframe}")
-        return jsonify(cached_result)
-    
-    logger.info(f"Fetching fresh historical data for {timeframe}...")
+    days_requested = timeframe_map.get(timeframe, 7)
     results = {}
-    
+
     for symbol, coingecko_id in [('BTC', 'bitcoin'), ('ETH', 'ethereum')]:
-        logger.info(f"Fetching {timeframe} data for {symbol} ({coingecko_id})...")
-        
-        # For 1-year data, use a different approach to avoid rate limits
-        if timeframe == '1y':
-            # Try to get 1-year data with longer timeout
-            url = f'https://api.coingecko.com/api/v3/coins/{coingecko_id}/market_chart'
-            params = {
-                'vs_currency': 'usd',
-                'days': days,
-                'interval': 'daily'
-            }
-            
-            # Use a longer timeout for 1-year data
-            response_data, error = request_handler.make_request(url, params=params, timeout=30)
-        else:
-            url = f'https://api.coingecko.com/api/v3/coins/{coingecko_id}/market_chart'
-            params = {
-                'vs_currency': 'usd',
-                'days': days,
-                'interval': 'daily'
-            }
-            
-            response_data, error = request_handler.make_request(url, params=params)
-        
-        if error:
-            logger.error(f'Historical data error for {symbol}: {error}')
-            
-            # For 1-year data, try a fallback approach with shorter timeframe
-            if timeframe == '1y':
-                logger.info(f"Trying fallback approach for {symbol} 1-year data...")
-                # Try with 6 months first, then we can extend if needed
-                fallback_params = {
+        cache_key = f"historical_data_{symbol}_1y"
+        # Try to get 1y data from cache (fresh or expired if needed)
+        historical_data = api_cache.get(cache_key)
+        if not historical_data:
+            lock = api_cache.get_lock(cache_key) if hasattr(api_cache, "get_lock") else None
+            if lock:
+                with lock:
+                    historical_data = api_cache.get(cache_key)
+                    if not historical_data:
+                        logger.info(f"Fetching 1y historical data for {symbol} from CoinGecko...")
+                        url = f'https://api.coingecko.com/api/v3/coins/{coingecko_id}/market_chart'
+                        params = {
+                            'vs_currency': 'usd',
+                            'days': 365,
+                            'interval': 'daily'
+                        }
+                        response_data, error = request_handler.make_request(url, params=params, timeout=30)
+                        if error or not response_data or 'prices' not in response_data:
+                            logger.error(f"Failed to fetch 1y data for {symbol}: {error}")
+                            # Serve stale data if available
+                            historical_data = api_cache.get(cache_key, allow_expired=True) if hasattr(api_cache, "get") else None
+                            if not historical_data:
+                                results[symbol] = {'error': f'Failed to fetch historical data: {error or "No data"}'}
+                                continue
+                            logger.warning(f"Serving stale cached 1y data for {symbol} due to error.")
+                        else:
+                            prices = response_data['prices']
+                            api_cache.set(cache_key, prices, 'historical')
+                            historical_data = prices
+            else:
+                # No lock support, just fetch
+                logger.info(f"Fetching 1y historical data for {symbol} from CoinGecko...")
+                url = f'https://api.coingecko.com/api/v3/coins/{coingecko_id}/market_chart'
+                params = {
                     'vs_currency': 'usd',
-                    'days': 180,  # 6 months
+                    'days': 365,
                     'interval': 'daily'
                 }
-                
-                fallback_response, fallback_error = request_handler.make_request(url, params=fallback_params, timeout=20)
-                
-                if fallback_error:
-                    results[symbol] = {'error': f'Failed to fetch 1-year data: {error}. Fallback also failed: {fallback_error}'}
-                else:
-                    # Use the 6-month data as fallback
-                    prices = fallback_response.get('prices', [])
-                    if len(prices) >= 2:
-                        dates = []
-                        price_history = []
-                        
-                        for price in prices:
-                            date_str = datetime.utcfromtimestamp(price[0] / 1000).strftime('%Y-%m-%d')
-                            dates.append(date_str)
-                            price_history.append(price[1])
-                        
-                        results[symbol] = {
-                            'symbol': symbol,
-                            'dates': dates,
-                            'prices': price_history,
-                            'current_price': price_history[-1] if price_history else None,
-                            'price_change': price_history[-1] - price_history[0] if len(price_history) >= 2 else None,
-                            'price_change_percent': ((price_history[-1] - price_history[0]) / price_history[0] * 100) if len(price_history) >= 2 else None,
-                            'timeframe': '6m',  # Note: this is fallback data
-                            'note': 'Showing 6-month data due to 1-year API limit'
-                        }
-                        continue
-                    else:
-                        results[symbol] = {'error': f'Failed to fetch 1-year data: {error}. Fallback data insufficient.'}
-            else:
-                results[symbol] = {'error': f'Failed to fetch historical data: {error}'}
-            continue
-        
-        prices = response_data.get('prices', [])
-        logger.info(f"{symbol} historical data points: {len(prices)}")
-        
-        if len(prices) < 2:
+                response_data, error = request_handler.make_request(url, params=params, timeout=30)
+                if error or not response_data or 'prices' not in response_data:
+                    logger.error(f"Failed to fetch 1y data for {symbol}: {error}")
+                    results[symbol] = {'error': f'Failed to fetch historical data: {error or "No data"}'}
+                    continue
+                prices = response_data['prices']
+                api_cache.set(cache_key, prices, 'historical')
+                historical_data = prices
+
+        # Now slice the cached 1y data for the requested timeframe
+        if not historical_data or len(historical_data) < 2:
             results[symbol] = {'error': 'Not enough historical data'}
             continue
-        
-        # Process historical data
-        dates = []
-        price_history = []
-        
-        for price in prices:
-            date_str = datetime.utcfromtimestamp(price[0] / 1000).strftime('%Y-%m-%d')
-            dates.append(date_str)
-            price_history.append(price[1])
-        
+
+        # Only keep the last N days
+        sliced = historical_data[-days_requested:]
+        dates = [datetime.utcfromtimestamp(p[0] / 1000).strftime('%Y-%m-%d') for p in sliced]
+        price_history = [p[1] for p in sliced]
+
         results[symbol] = {
             'symbol': symbol,
             'dates': dates,
@@ -861,8 +838,8 @@ def historical():
             'price_change_percent': ((price_history[-1] - price_history[0]) / price_history[0] * 100) if len(price_history) >= 2 else None,
             'timeframe': timeframe
         }
-    
-    api_cache.set(cache_key, results, 'historical')
+
+    api_cache.set(f"historical_data_{timeframe}", results, 'historical')
     return jsonify(results)
 
 @app.route('/cache/status')
