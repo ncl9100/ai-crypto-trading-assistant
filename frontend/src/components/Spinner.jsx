@@ -1,3 +1,5 @@
+import React from 'react';
+
 export default function Spinner({ message = "Loading..." }) {
   return (
     <div className="flex flex-col items-center justify-center py-8">

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import useDataStore from '../store/useDataStore';
 import { useAuth } from '../context/AuthContext';
 import Spinner from '../components/Spinner';
-import { toast } from 'react-toastify'; // <-- ADD THIS
+import { toast } from 'react-toastify';
 
 // Helper to map score (-1 to 1) to percent (0 to 100)
 function scoreToPercent(score) {
