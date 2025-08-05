@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import Spinner from '../components/Spinner';
+import { toast } from 'react-toastify'; // <-- ADD THIS
 
 function scoreToPercent(score) {
   return Math.round(((score + 1) / 2) * 100);
@@ -20,9 +22,11 @@ function SentimentBar({ score, colorClass }) {
 export default function AverageSentimentCard() {
   const [sentiment, setSentiment] = useState(null);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
   const { getAuthHeaders } = useAuth();
 
   useEffect(() => {
+    setLoading(true);
     fetch('http://localhost:5000/sentiment', {
       headers: getAuthHeaders()
     })
@@ -35,10 +39,15 @@ export default function AverageSentimentCard() {
         setError(null);
       })
       .catch(err => {
-        setError('Unable to load sentiment data. Please try again later.');
+        const msg = 'Unable to load sentiment data. Please try again later.';
+        setError(msg);
         setSentiment(null);
-      });
+        toast.error(msg); // <-- ADD THIS
+      })
+      .finally(() => setLoading(false));
   }, [getAuthHeaders]);
+
+  if (loading) return <Spinner message="Loading sentiment..." />;
 
   function getOverallAverage(coin) {
     if (!sentiment || !sentiment[coin]) return 0;
@@ -86,4 +95,4 @@ export default function AverageSentimentCard() {
       )}
     </div>
   );
-} 
+}

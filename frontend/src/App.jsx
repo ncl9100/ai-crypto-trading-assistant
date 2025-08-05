@@ -15,6 +15,8 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import Historical from './pages/Historical.jsx';
 import Recommendation from './pages/Recommendation.jsx';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function AppContent() {
   // Prepare BTC and ETH chart data for dashboard card
@@ -195,6 +197,7 @@ function AppContent() {
 function App() {
   return (
     <AuthProvider>
+      <ToastContainer position="top-right" autoClose={4000} />
       <AppContent />
     </AuthProvider>
   );

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import Spinner from '../components/Spinner';
 import { Line } from 'react-chartjs-2';
+import { toast } from 'react-toastify'; // <-- ADD THIS
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -42,44 +44,33 @@ function getEvenYAxisRange(dataArr, numTicks = 7, roundTo = 100) {
   return { min: niceMin, max: niceMax, stepSize };
 }
 
-const getYAxisRange = (dataArr) => {
-  const min = Math.min(...dataArr);
-  const max = Math.max(...dataArr);
-  const buffer = (max - min) * 0.1 || 1; // 10% buffer or 1 if flat
-  return {
-    min: min - buffer,
-    max: max + buffer,
-  };
-};
-
 const Predict = () => {
   const [data, setData] = useState(null);
-  const [activeTab, setActiveTab] = useState('BTC');
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('BTC'); // <-- FIXED: define activeTab state
   const { getAuthHeaders } = useAuth();
 
   useEffect(() => {
+    setLoading(true);
     const headers = getAuthHeaders();
-    console.log('Sending request with headers:', headers);
-    
-    axios.get('http://localhost:5000/predict', {
-      headers: headers
-    })
+    axios.get('http://localhost:5000/predict', { headers })
       .then(res => {
-        console.log('Predict API response:', res.data);
         setData(res.data);
         setError(null);
       })
       .catch(err => {
-        console.error('Predict API error:', err.response?.data || err.message);
-        console.error('Response status:', err.response?.status);
-        setError(err.response?.data?.error || 'Failed to load prediction data');
+        const msg = err.response?.data?.error || 'Failed to load prediction data';
+        setError(msg);
+        toast.error(msg); // <-- ADD THIS
         setData(null);
-      });
+      })
+      .finally(() => setLoading(false));
   }, [getAuthHeaders]);
 
+  if (loading) return <Spinner message="Loading prediction..." />;
   if (error) return <div className="text-red-400">Error: {error}</div>;
-  if (!data) return <div>Loading...</div>;
+  if (!data) return <Spinner message="Loading prediction..." />;
 
   // Prepare labels: use dates from backend, format as 'MMM D'
   const btcDates = Array.isArray(data.BTC?.dates) ? data.BTC.dates : [];
@@ -183,7 +174,6 @@ const Predict = () => {
           },
           stepSize: btcYAxisObj.stepSize,
         },
-        // Note: True axis breaks (zig-zags) are not natively supported in Chart.js
       },
       x: {
         title: {
@@ -301,7 +291,6 @@ const Predict = () => {
           },
           stepSize: ethYAxisObj.stepSize,
         },
-        // Note: True axis breaks (zig-zags) are not natively supported in Chart.js
       },
       x: {
         title: {

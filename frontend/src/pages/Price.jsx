@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import useDataStore from '../store/useDataStore';
 import { useAuth } from '../context/AuthContext';
+import Spinner from '../components/Spinner';
+import { toast } from 'react-toastify';
 
 export default function Price() {
   const { price, setPrice, lastUpdated } = useDataStore(); 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [timeSinceUpdate, setTimeSinceUpdate] = useState(0);
+  const [loading, setLoading] = useState(true);
   const { getAuthHeaders } = useAuth();
 
   useEffect(() => {
@@ -21,6 +24,7 @@ export default function Price() {
   useEffect(() => {
     const fetchPrices = async () => {
       setIsRefreshing(true);
+      setLoading(true);
       try {
         const res = await axios.get('http://localhost:5000/price', {
           headers: getAuthHeaders()
@@ -29,26 +33,29 @@ export default function Price() {
         if (res.data?.bitcoin && res.data?.ethereum) {
           setPrice(res.data);
         } else {
-          console.warn('Unexpected response from API:', res.data);
+          toast.error('Unexpected response from API');
         }
       } catch (err) {
-        console.error('Error fetching /price:', err.response?.data || err.message);
+        toast.error('Failed to fetch live prices');
       } finally {
         setIsRefreshing(false);
+        setLoading(false);
       }
     };
 
     fetchPrices();
     const interval = setInterval(fetchPrices, 10000);
     return () => clearInterval(interval);
-  }, [getAuthHeaders]);
+  }, [getAuthHeaders, setPrice]);
+
+  if (loading) {
+    return <Spinner message="Loading live prices..." />;
+  }
 
   return (
     <div className="w-full h-full">
       <div className="bg-slate-800 rounded-xl shadow-lg p-6 w-full h-full text-center text-slate-100">
         <h2 className="text-2xl font-semibold mb-4">Live Prices</h2>
-
-        {/* Timestamp and refresh status */}
         <div className="text-sm text-slate-400 mb-3">
           {isRefreshing ? (
             <span className="animate-spin inline-block mr-1">🔄</span>
@@ -61,8 +68,6 @@ export default function Price() {
             </div>
           )}
         </div>
-
-        {/* Price Data */}
         {price?.bitcoin?.usd && price?.ethereum?.usd ? (
           <>
             <p className="text-lg text-slate-200 mb-2">
@@ -77,7 +82,7 @@ export default function Price() {
         ) : price ? (
           <p className="text-red-400 italic">API rate limit exceeded or data unavailable.</p>
         ) : (
-          <p className="text-slate-400 italic">Loading...</p>
+          <Spinner message="Loading live prices..." />
         )}
       </div>
     </div>

@@ -493,7 +493,7 @@ def predict():
     sentiment_data = api_cache.get("sentiment_data")
     if not sentiment_data:
         logger.warning("Sentiment data not cached, fetching fresh sentiment...")
-        sentiment_response = sentiment()
+        sentiment_response = get_sentiment_data()
         if hasattr(sentiment_response, "get_json"):
             sentiment_data = sentiment_response.get_json()
         else:
@@ -567,7 +567,7 @@ def predict():
 
 @app.route('/sentiment')
 @require_auth
-def sentiment():
+def get_sentiment_data():
     """
     Fetches real Reddit headlines for BTC and ETH, and crypto news headlines from CoinDesk and CoinTelegraph.
     Applies TextBlob sentiment analysis to each group of headlines and returns the average sentiment.
@@ -708,7 +708,7 @@ def recommendation():
     sentiment_data = api_cache.get("sentiment_data")
     if not sentiment_data:
         logger.warning("Sentiment data not cached, fetching fresh sentiment...")
-        sentiment_response = sentiment()
+        sentiment_response = get_sentiment_data()
         if hasattr(sentiment_response, "get_json"):
             sentiment_data = sentiment_response.get_json()
         else:

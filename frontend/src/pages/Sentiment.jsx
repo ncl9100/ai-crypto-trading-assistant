@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import useDataStore from '../store/useDataStore';
 import { useAuth } from '../context/AuthContext';
+import Spinner from '../components/Spinner';
+import { toast } from 'react-toastify'; // <-- ADD THIS
 
 // Helper to map score (-1 to 1) to percent (0 to 100)
 function scoreToPercent(score) {
@@ -37,10 +39,12 @@ function SentimentSource({ label, score, colorClass }) {
 export default function Sentiment() {
   const { sentiment, setSentiment } = useDataStore();
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
   const { getAuthHeaders } = useAuth();
 
   useEffect(() => {
     if (!sentiment) {
+      setLoading(true);
       fetch('http://localhost:5000/sentiment', {
         headers: getAuthHeaders()
       })
@@ -53,17 +57,23 @@ export default function Sentiment() {
           setError(null);
         })
         .catch(err => {
-          setError('Unable to load sentiment data. Please try again later.');
+          const msg = 'Unable to load sentiment data. Please try again later.';
+          setError(msg);
           setSentiment(null);
-        });
+          toast.error(msg); // <-- ADD THIS
+        })
+        .finally(() => setLoading(false));
+    } else {
+      setLoading(false);
     }
   }, [sentiment, setSentiment, getAuthHeaders]);
+
+  if (loading) return <Spinner message="Loading sentiment..." />;
 
   return (
     <div className="w-full h-full">
       <div className="bg-slate-800 rounded-xl shadow-lg p-6 w-full h-full text-center text-slate-100">
         <h2 className="text-2xl font-semibold mb-4">Market Sentiment</h2>
-
         {error ? (
           <p className="text-red-400 italic">{error}</p>
         ) : sentiment ? (
@@ -90,7 +100,7 @@ export default function Sentiment() {
             )}
           </>
         ) : (
-          <p className="text-slate-400 italic">Loading sentiment...</p>
+          <Spinner message="Loading sentiment..." />
         )}
       </div>
     </div>

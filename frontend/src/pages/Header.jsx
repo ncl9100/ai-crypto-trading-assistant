@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { FaSignOutAlt, FaUser } from 'react-icons/fa';
 
-export default function Header() { // exporting makes it available for import in other files
+export default function Header() {
   const { pathname } = useLocation();
   const { user, logout } = useAuth();
 
@@ -16,9 +16,13 @@ export default function Header() { // exporting makes it available for import in
   ];
 
   return (
-    <header className="bg-slate-800 shadow border-b border-slate-700">
-      <nav className="max-w-6xl mx-auto px-6 py-4 flex justify-between items-center text-sm font-medium text-slate-300">
-        <div className="flex gap-6">
+    <header className="bg-slate-800 shadow border-b border-slate-700 relative">
+      <nav className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-center relative">
+        {/* Centered navigation */}
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 flex items-center h-full">
+          {/* Empty div for spacing, or put a logo here if you want */}
+        </div>
+        <div className="flex gap-6 mx-auto">
           {navLinks.map(({ path, label }) => (
             <Link
               key={path}
@@ -31,9 +35,9 @@ export default function Header() { // exporting makes it available for import in
             </Link>
           ))}
         </div>
-        
+        {/* User info and logout on the right */}
         {user && (
-          <div className="flex items-center gap-4">
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-4">
             <div className="flex items-center gap-2 text-slate-400">
               <FaUser className="h-4 w-4" />
               <span className="text-sm">{user.username}</span>

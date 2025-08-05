@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import Spinner from '../components/Spinner';
+import { toast } from 'react-toastify';
 
 export default function Recommendation() {
   const [recommendation, setRecommendation] = useState(null);
@@ -18,9 +20,10 @@ export default function Recommendation() {
         setRecommendation(response.data);
         setError(null);
       } catch (err) {
-        console.error('Error fetching recommendation:', err);
-        setError('Failed to load recommendation');
+        const msg = 'Failed to load recommendation';
+        setError(msg);
         setRecommendation(null);
+        toast.error(msg);
       } finally {
         setLoading(false);
       }
@@ -30,14 +33,7 @@ export default function Recommendation() {
   }, [getAuthHeaders]);
 
   if (loading) {
-    return (
-      <div className="w-full h-full">
-        <div className="bg-slate-800 rounded-xl shadow-lg p-6 w-full h-full text-center text-slate-100">
-          <h2 className="text-2xl font-semibold mb-4">Strategy Recommendation</h2>
-          <div className="text-slate-400 italic">Loading recommendation...</div>
-        </div>
-      </div>
-    );
+    return <Spinner message="Loading recommendation..." />;
   }
 
   if (error) {
@@ -86,4 +82,4 @@ export default function Recommendation() {
       </div>
     </div>
   );
-} 
+}

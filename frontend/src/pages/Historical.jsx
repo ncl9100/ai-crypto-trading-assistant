@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Line } from 'react-chartjs-2';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import Spinner from '../components/Spinner';
+import { toast } from 'react-toastify'; // <-- ADD THIS
 import { format, parseISO } from 'date-fns';
 import {
   Chart as ChartJS,
@@ -28,37 +30,34 @@ const Historical = () => {
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState('BTC');
   const [timeframe, setTimeframe] = useState('7d');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const { getAuthHeaders } = useAuth();
 
   const fetchHistoricalData = (selectedTimeframe) => {
     setIsLoading(true);
     setError(null);
-    
     axios.get(`http://localhost:5000/historical?timeframe=${selectedTimeframe}`, {
       headers: getAuthHeaders()
     })
       .then(res => {
-        console.log('Historical API response:', res.data);
         setData(res.data);
       })
       .catch(err => {
-        console.error('Historical API error:', err.response?.data || err.message);
-        setError(err.response?.data?.error || 'Failed to load historical data');
+        const msg = err.response?.data?.error || 'Failed to load historical data';
+        setError(msg);
+        toast.error(msg); // <-- ADD THIS
       })
-      .finally(() => {
-        setIsLoading(false);
-      });
+      .finally(() => setIsLoading(false));
   };
 
   useEffect(() => {
     fetchHistoricalData(timeframe);
   }, [getAuthHeaders, timeframe]);
 
-  if (isLoading) return <div className="text-slate-400 italic">Loading historical data...</div>;
+  if (isLoading) return <Spinner message="Loading historical data..." />;
   if (error) return <div className="text-red-400">Error: {error}</div>;
-  if (!data) return <div className="text-slate-400 italic">No data available</div>;
+  if (!data) return <Spinner message="Loading historical data..." />;
 
   // Get data for active tab
   const activeData = data[activeTab];
@@ -329,4 +328,4 @@ const Historical = () => {
   );
 };
 
-export default Historical; 
+export default Historical;
