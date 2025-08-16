@@ -30,8 +30,7 @@ function AppContent() {
   useEffect(() => {
     if (!isAuthenticated()) return;
     
-    const API_URL = import.meta.env.VITE_API_URL;
-    axios.get(`${API_URL}/predict`, {
+    axios.get('http://localhost:5000/predict', {
       headers: getAuthHeaders()
     })
       .then(res => {
@@ -147,7 +146,7 @@ function AppContent() {
           path="/"
           element={
             <ProtectedRoute>
-              <div className="p-6 md:p-10 text-center text-slate-100 mt-20">
+              <div className="p-6 md:p-10 text-center text-slate-100">
                 <h1 className="text-4xl font-bold flex items-center justify-center gap-3 mb-2">
                   <FaChartLine className="text-indigo-400" />
                   Crypto Dashboard
