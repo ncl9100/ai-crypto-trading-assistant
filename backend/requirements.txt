@@ -1,0 +1,11 @@
+requests
+numpy
+scikit-learn
+python-dotenv
+praw
+feedparser
+textblob
+Flask
+flask-cors
+werkzeug
+PyJWT

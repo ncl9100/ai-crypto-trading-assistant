@@ -41,6 +41,7 @@ from textblob import TextBlob  # For basic sentiment analysis
 import logging
 from typing import Dict, List, Optional, Any, Tuple
 import random
+import yfinance as yf
 import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
@@ -455,114 +456,96 @@ def ping():  # ping() is a function that will be called when the endpoint is acc
 
 @app.route('/price')  # another endpoint for price
 def price():
-    # This function returns live BTC/ETH prices from CoinGecko with intelligent caching
-    cache_key = "current_prices"
+    # This function returns live BTC/ETH prices from Yahoo Finance with intelligent caching
+    cache_key = "current_prices_yf"
     cached_result = api_cache.get(cache_key)
-    
     if cached_result:
-        logger.info("Serving cached price data")
+        logger.info("Serving cached price data (Yahoo Finance)")
         return jsonify(cached_result)
-    
-    logger.info("Fetching fresh price from CoinGecko...")
-    url = 'https://api.coingecko.com/api/v3/simple/price'
-    params = {'ids': 'bitcoin,ethereum', 'vs_currencies': 'usd'}
-    
-    response_data, error = request_handler.make_request(url, params=params)
-    
-    if error:
-        logger.error(f"CoinGecko error: {error}")
-        return jsonify({"error": "Failed to fetch price"}), 503
-    
+    btc = yf.Ticker("BTC-USD").history(period="1d")
+    eth = yf.Ticker("ETH-USD").history(period="1d")
+    btc_price = round(float(btc['Close'][-1]), 2) if not btc.empty else None
+    eth_price = round(float(eth['Close'][-1]), 2) if not eth.empty else None
+    response_data = {
+        'bitcoin': {'usd': btc_price},
+        'ethereum': {'usd': eth_price}
+    }
     api_cache.set(cache_key, response_data, 'price')
     return jsonify(response_data)
 
 @app.route('/predict')
 @require_auth
 def predict():
-    cache_key = "prediction_data"
-    cached_result = api_cache.get(cache_key)
-    
-    if cached_result:
-        logger.info("Serving cached prediction data")
-        return jsonify(cached_result)
-    
-    logger.info("Generating fresh predictions...")
+    requested_date = request.args.get('date')
+    window = int(request.args.get('window', 30))
+    future_days = 7  # Number of future days to extrapolate
+    logger.info("Generating predictions...")
     results = {}
 
-    # Get cached sentiment data (from /sentiment endpoint)
-    sentiment_data = api_cache.get("sentiment_data")
-    if not sentiment_data:
-        logger.warning("Sentiment data not cached, fetching fresh sentiment...")
-        sentiment_response = get_sentiment_data()
-        if hasattr(sentiment_response, "get_json"):
-            sentiment_data = sentiment_response.get_json()
-        else:
-            sentiment_data = sentiment_response
+    for symbol, ticker in [('BTC', 'BTC-USD'), ('ETH', 'ETH-USD')]:
+        logger.info(f"Fetching data for {symbol} ({ticker}) from Yahoo Finance...")
+        try:
+            data = yf.Ticker(ticker).history(period=f"{window}d")
+            if data.empty or len(data) < 2:
+                results[symbol] = {
+                    'dates': [],
+                    'actual': [],
+                    'predicted': [],
+                    'predicted_price': None
+                }
+                continue
+            dates = [d.strftime('%Y-%m-%d') for d in data.index]
+            prices = [float(p) for p in data['Close']]
 
-    for symbol, coingecko_id in [('BTC', 'bitcoin'), ('ETH', 'ethereum')]:
-        logger.info(f"Fetching data for {symbol} ({coingecko_id})...")
-        url = f'https://api.coingecko.com/api/v3/coins/{coingecko_id}/market_chart'
-        params = {
-            'vs_currency': 'usd',
-            'days': 30,
-            'interval': 'daily'
-        }
-        
-        response_data, error = request_handler.make_request(url, params=params)
-        
-        if error:
-            logger.error(f'Prediction error for {symbol}: {error}')
-            results[symbol] = {'error': 'Prediction failed'}
-            continue
-        
-        prices = response_data.get('prices', [])
-        if len(prices) < 2:
-            results[symbol] = {'error': 'Not enough data for prediction'}
-            continue
-        
-        # Deduplicate by date: keep only the last price for each date
-        date_to_price = {}
-        for price in prices:
-            date_str = datetime.utcfromtimestamp(price[0] / 1000).strftime('%Y-%m-%d')
-            date_to_price[date_str] = price[1]
-        dedup_dates = sorted(date_to_price.keys())
-        dedup_prices = [date_to_price[d] for d in dedup_dates]
+            # Train linear regression model on last 30 days
+            X = list(range(len(prices)))
+            y = prices
+            model = LinearRegression()
+            model.fit([[i] for i in X], y)
 
-        # --- Get average sentiment for this coin from cached sentiment_data ---
-        sent_block = sentiment_data.get(symbol, {})
-        sent_scores = []
-        for src in ["reddit_sentiment", "coindesk_sentiment", "cointelegraph_sentiment"]:
-            if src in sent_block and "average" in sent_block[src]:
-                sent_scores.append(sent_block[src]["average"])
-        sentiment = float(np.mean(sent_scores)) if sent_scores else 0.0
+            # Predict for each day in window + future_days
+            total_days = len(prices) + future_days
+            predicted_prices = model.predict([[i] for i in range(total_days)])
 
-        # --- Prepare features: day index and sentiment ---
-        X = np.column_stack([
-            np.arange(len(dedup_prices)),           # day index
-            np.full(len(dedup_prices), sentiment)   # use latest sentiment for all days
-        ])
-        y = np.array(dedup_prices)
 
-        # Append next day for prediction
-        last_date_obj = datetime.strptime(dedup_dates[-1], '%Y-%m-%d')
-        next_date_obj = last_date_obj + timedelta(days=1)
-        next_date = next_date_obj.strftime('%Y-%m-%d')
-        dedup_dates.append(next_date)
+            # Always include today's date as the last date if not present
+            today_str = datetime.utcnow().strftime("%Y-%m-%d")
+            if today_str not in dates:
+                dates.append(today_str)
+                prices.append(None)
 
-        model = LinearRegression()
-        model.fit(X, y)
-        next_day = np.array([[len(dedup_prices), sentiment]])
-        predicted_price = model.predict(next_day)[0]
+            # Extend dates with future dates
+            last_date = datetime.strptime(dates[-1], "%Y-%m-%d")
+            future_dates = [(last_date + timedelta(days=i+1)).strftime("%Y-%m-%d") for i in range(future_days)]
+            all_dates = dates + future_dates
 
-        results[symbol] = {
-            'symbol': symbol,
-            'history': y.tolist(),
-            'dates': dedup_dates,
-            'sentiment': sentiment,
-            'predicted_price': float(predicted_price)
-        }
+            # Actual prices only for historical dates
+            actual_extended = prices + [None]*future_days
 
-    api_cache.set(cache_key, results, 'predict')
+            # If a specific date is requested, predict for that date
+            predicted_price = None
+            if requested_date:
+                try:
+                    idx = all_dates.index(requested_date)
+                    predicted_price = float(predicted_prices[idx])
+                except Exception:
+                    predicted_price = None
+
+            results[symbol] = {
+                'dates': all_dates,
+                'actual': actual_extended,
+                'predicted': [float(p) for p in predicted_prices],
+                'predicted_price': predicted_price
+            }
+        except Exception as e:
+            logger.error(f"Error fetching or predicting for {symbol}: {e}")
+            results[symbol] = {
+                'dates': [],
+                'actual': [],
+                'predicted': [],
+                'predicted_price': None
+            }
+
     return jsonify(results)
 
 @app.route('/sentiment')

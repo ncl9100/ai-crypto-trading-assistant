@@ -22,6 +22,8 @@ function AppContent() {
   // Prepare BTC and ETH chart data for dashboard card
   const [btcChartData, setBtcChartData] = useState(null);
   const [ethChartData, setEthChartData] = useState(null);
+  const [btcRawResponse, setBtcRawResponse] = useState(null);
+  const [ethRawResponse, setEthRawResponse] = useState(null);
   const [activeDashboardTab, setActiveDashboardTab] = useState('BTC');
   const { isAuthenticated, getAuthHeaders } = useAuth();
 
@@ -35,13 +37,14 @@ function AppContent() {
         const data = res.data;
         // BTC
         if (data && data.BTC) {
+          setBtcRawResponse(data.BTC);
           const btcDates = Array.isArray(data.BTC?.dates) ? data.BTC.dates : [];
           const btcLabels = btcDates.map((date, idx) => {
             if (idx === btcDates.length - 1) return 'Next Day';
             return format(parseISO(date), 'MMM d');
           });
-          const btcHistory = Array.isArray(data.BTC?.history) ? data.BTC.history : [];
-          const btcPrediction = typeof data.BTC?.predicted_price === 'number' ? data.BTC?.predicted_price : null;
+          const btcHistory = Array.isArray(data.BTC?.actual) ? data.BTC.actual.filter(v => v !== null) : [];
+          const btcPrediction = Array.isArray(data.BTC?.predicted) && data.BTC.predicted.length > 0 ? data.BTC.predicted[data.BTC.predicted.length - 1] : null;
           const btcDataArr = btcPrediction !== null ? [...btcHistory, btcPrediction] : btcHistory;
           const btcPointBackgroundColors = Array(Math.max(0, btcDataArr.length - 1)).fill('#f7931a');
           btcPointBackgroundColors.push('#ff0000');
@@ -49,39 +52,46 @@ function AppContent() {
           btcPointRadius.push(8);
           const btcPointStyle = Array(Math.max(0, btcDataArr.length - 1)).fill('circle');
           btcPointStyle.push('triangle');
-          setBtcChartData({
-            labels: btcLabels,
-            datasets: [
-              {
-                label: 'BTC Price (USD)',
-                data: btcDataArr,
-                borderColor: '#f7931a',
-                backgroundColor: '#f7931a33',
-                tension: 0.2,
-                pointBackgroundColor: btcPointBackgroundColors,
-                pointRadius: btcPointRadius,
-                pointHoverRadius: btcPointRadius,
-                pointStyle: btcPointStyle,
-                clip: false,
-                datalabels: {
-                  display: (ctx) => ctx.dataIndex === btcDataArr.length - 1,
-                  align: 'end',
-                  anchor: 'end',
-                  formatter: () => 'Prediction',
-                },
-              },
-            ],
-          });
+           setBtcChartData({
+             labels: btcLabels,
+             datasets: [
+               {
+                 label: 'Actual',
+                 data: btcHistory,
+                 borderColor: '#f7931a',
+                 backgroundColor: '#f7931a33',
+                 tension: 0.2,
+                 pointBackgroundColor: Array(btcHistory.length).fill('#f7931a'),
+                 pointRadius: Array(btcHistory.length).fill(0),
+                 pointHoverRadius: Array(btcHistory.length).fill(0),
+                 pointStyle: Array(btcHistory.length).fill('circle'),
+                 clip: false,
+               },
+               {
+                 label: 'Predicted',
+                 data: Array.isArray(data.BTC?.predicted) ? data.BTC.predicted : [],
+                 borderColor: '#ff0000',
+                 backgroundColor: '#ff000033',
+                 tension: 0.2,
+                 pointBackgroundColor: Array(Array.isArray(data.BTC?.predicted) ? data.BTC.predicted.length : 0).fill('#ff0000'),
+                 pointRadius: Array(Array.isArray(data.BTC?.predicted) ? data.BTC.predicted.length : 0).fill(2),
+                 pointHoverRadius: Array(Array.isArray(data.BTC?.predicted) ? data.BTC.predicted.length : 0).fill(4),
+                 pointStyle: Array(Array.isArray(data.BTC?.predicted) ? data.BTC.predicted.length : 0).fill('triangle'),
+                 clip: false,
+               },
+             ],
+           });
         }
         // ETH
         if (data && data.ETH) {
+          setEthRawResponse(data.ETH);
           const ethDates = Array.isArray(data.ETH?.dates) ? data.ETH.dates : [];
           const ethLabels = ethDates.map((date, idx) => {
             if (idx === ethDates.length - 1) return 'Next Day';
             return format(parseISO(date), 'MMM d');
           });
-          const ethHistory = Array.isArray(data.ETH?.history) ? data.ETH.history : [];
-          const ethPrediction = typeof data.ETH?.predicted_price === 'number' ? data.ETH?.predicted_price : null;
+          const ethHistory = Array.isArray(data.ETH?.actual) ? data.ETH.actual.filter(v => v !== null) : [];
+          const ethPrediction = Array.isArray(data.ETH?.predicted) && data.ETH.predicted.length > 0 ? data.ETH.predicted[data.ETH.predicted.length - 1] : null;
           const ethDataArr = ethPrediction !== null ? [...ethHistory, ethPrediction] : ethHistory;
           const ethPointBackgroundColors = Array(Math.max(0, ethDataArr.length - 1)).fill('#627eea');
           ethPointBackgroundColors.push('#00ffea');
@@ -89,29 +99,35 @@ function AppContent() {
           ethPointRadius.push(8);
           const ethPointStyle = Array(Math.max(0, ethDataArr.length - 1)).fill('circle');
           ethPointStyle.push('rectRot');
-          setEthChartData({
-            labels: ethLabels,
-            datasets: [
-              {
-                label: 'ETH Price (USD)',
-                data: ethDataArr,
-                borderColor: '#627eea',
-                backgroundColor: '#627eea33',
-                tension: 0.2,
-                pointBackgroundColor: ethPointBackgroundColors,
-                pointRadius: ethPointRadius,
-                pointHoverRadius: ethPointRadius,
-                pointStyle: ethPointStyle,
-                clip: false,
-                datalabels: {
-                  display: (ctx) => ctx.dataIndex === ethDataArr.length - 1,
-                  align: 'end',
-                  anchor: 'end',
-                  formatter: () => 'Prediction',
-                },
-              },
-            ],
-          });
+           setEthChartData({
+             labels: ethLabels,
+             datasets: [
+               {
+                 label: 'Actual',
+                 data: ethHistory,
+                 borderColor: '#627eea',
+                 backgroundColor: '#627eea33',
+                 tension: 0.2,
+                 pointBackgroundColor: Array(ethHistory.length).fill('#627eea'),
+                 pointRadius: Array(ethHistory.length).fill(0),
+                 pointHoverRadius: Array(ethHistory.length).fill(0),
+                 pointStyle: Array(ethHistory.length).fill('circle'),
+                 clip: false,
+               },
+               {
+                 label: 'Predicted',
+                 data: Array.isArray(data.ETH?.predicted) ? data.ETH.predicted : [],
+                 borderColor: '#00ffea',
+                 backgroundColor: '#00ffea33',
+                 tension: 0.2,
+                 pointBackgroundColor: Array(Array.isArray(data.ETH?.predicted) ? data.ETH.predicted.length : 0).fill('#00ffea'),
+                 pointRadius: Array(Array.isArray(data.ETH?.predicted) ? data.ETH.predicted.length : 0).fill(2),
+                 pointHoverRadius: Array(Array.isArray(data.ETH?.predicted) ? data.ETH.predicted.length : 0).fill(4),
+                 pointStyle: Array(Array.isArray(data.ETH?.predicted) ? data.ETH.predicted.length : 0).fill('rectRot'),
+                 clip: false,
+               },
+             ],
+           });
         }
       })
       .catch(() => {
@@ -145,7 +161,7 @@ function AppContent() {
                   </div>
                   <div className="w-full max-w-md min-h-[250px]">
                     <div className="bg-slate-800 rounded-xl shadow-lg p-6 w-full h-full text-center text-slate-100 flex flex-col items-center justify-center">
-                      <h2 className="text-2xl font-semibold mb-4">Price Trend & Next-Day Prediction</h2>
+                      <h2 className="text-2xl font-semibold mb-4">Historical Price & Model Forecast</h2>
                       <div className="flex justify-center mb-4">
                         <button
                           className={`px-6 py-2 rounded-t-lg font-semibold focus:outline-none transition-colors duration-200 ${activeDashboardTab === 'BTC' ? 'bg-slate-700 text-amber-400' : 'bg-slate-900 text-slate-300'}`}
@@ -162,17 +178,44 @@ function AppContent() {
                       </div>
                       {activeDashboardTab === 'BTC' ? (
                         btcChartData ? (
-                          <MiniTrendChart data={btcChartData} />
+                          <MiniTrendChart
+                            actual={(() => {
+                              if (!btcRawResponse || !btcRawResponse.actual || !btcRawResponse.dates) return [];
+                              return btcRawResponse.actual
+                                .map((price, i) => ({ date: btcRawResponse.dates[i], price }))
+                                .filter(d => d.price !== null);
+                            })()}
+                            predicted={(() => {
+                              if (!btcRawResponse || !btcRawResponse.predicted || !btcRawResponse.dates) return [];
+                              return btcRawResponse.predicted.map((price, i) => ({ date: btcRawResponse.dates[i], price }));
+                            })()}
+                            coin="BTC"
+                            loading={!btcChartData}
+                          />
                         ) : (
                           <div className="text-slate-400 italic">Loading...</div>
                         )
                       ) : (
                         ethChartData ? (
-                          <MiniTrendChart data={ethChartData} />
+                          <MiniTrendChart
+                            actual={(() => {
+                              if (!ethRawResponse || !ethRawResponse.actual || !ethRawResponse.dates) return [];
+                              return ethRawResponse.actual
+                                .map((price, i) => ({ date: ethRawResponse.dates[i], price }))
+                                .filter(d => d.price !== null);
+                            })()}
+                            predicted={(() => {
+                              if (!ethRawResponse || !ethRawResponse.predicted || !ethRawResponse.dates) return [];
+                              return ethRawResponse.predicted.map((price, i) => ({ date: ethRawResponse.dates[i], price }));
+                            })()}
+                            coin="ETH"
+                            loading={!ethChartData}
+                          />
                         ) : (
                           <div className="text-slate-400 italic">Loading...</div>
                         )
                       )}
+                      {/* Debug output removed */}
                     </div>
                   </div>
                   <div className="w-full max-w-md min-h-[250px]">

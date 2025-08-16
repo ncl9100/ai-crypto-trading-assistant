@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { useAuth } from '../context/AuthContext';
-import Spinner from '../components/Spinner';
 import { Line } from 'react-chartjs-2';
-import { toast } from 'react-toastify'; // <-- ADD THIS
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -14,7 +11,8 @@ import {
   Tooltip,
   Legend,
 } from 'chart.js';
-import { format, parseISO } from 'date-fns';
+import { useAuth } from '../context/AuthContext';
+import Spinner from '../components/Spinner';
 
 ChartJS.register(
   CategoryScale,
@@ -26,430 +24,332 @@ ChartJS.register(
   Legend
 );
 
-// Helper to round to a nice value
-function niceRound(value, roundTo) {
-  return Math.round(value / roundTo) * roundTo;
-}
-
-// Helper to get nice min/max and stepSize for y-axis
-function getEvenYAxisRange(dataArr, numTicks = 7, roundTo = 100) {
-  const min = Math.min(...dataArr);
-  const max = Math.max(...dataArr);
-  const buffer = (max - min) * 0.1 || 1;
-  let niceMin = Math.floor((min - buffer) / roundTo) * roundTo;
-  let niceMax = Math.ceil((max + buffer) / roundTo) * roundTo;
-  // Ensure min and max are not equal
-  if (niceMin === niceMax) niceMax = niceMin + roundTo * (numTicks - 1);
-  const stepSize = (niceMax - niceMin) / (numTicks - 1);
-  return { min: niceMin, max: niceMax, stepSize };
-}
+const BACKEND_URL = 'http://localhost:5000';
 
 const Predict = () => {
-  // 1. Detect mobile
-  const isMobile = window.innerWidth < 640;
-
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('BTC'); // <-- FIXED: define activeTab state
   const { getAuthHeaders } = useAuth();
+  const [coin, setCoin] = useState('BTC');
+  const [actualData, setActualData] = useState({ BTC: [], ETH: [] });
+  const [predictedData, setPredictedData] = useState({ BTC: [], ETH: [] });
+  const [fullDates, setFullDates] = useState({ BTC: [], ETH: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedDate, setSelectedDateRaw] = useState('');
+
+  const setSelectedDate = (date) => {
+    setSelectedDateRaw(date);
+  };
 
   useEffect(() => {
-    setLoading(true);
-    const headers = getAuthHeaders();
-    axios.get('http://localhost:5000/predict', { headers })
-      .then(res => {
-        setData(res.data);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const headers = getAuthHeaders();
+        const response = await axios.get(
+          `${BACKEND_URL}/predict?window=30`,
+          { headers }
+        );
+        const result = response.data;
+        setActualData({
+          BTC: (result.BTC.dates || []).map((date, i) => ({ date, price: result.BTC.actual[i] })),
+          ETH: (result.ETH.dates || []).map((date, i) => ({ date, price: result.ETH.actual[i] })),
+        });
+        setPredictedData({
+          BTC: (result.BTC.dates || []).map((date, i) => ({ date, price: result.BTC.predicted[i] })),
+          ETH: (result.ETH.dates || []).map((date, i) => ({ date, price: result.ETH.predicted[i] })),
+        });
+        setFullDates({
+          BTC: result.BTC.dates || [],
+          ETH: result.ETH.dates || [],
+        });
         setError(null);
-      })
-      .catch(err => {
-        const msg = err.response?.data?.error || 'Failed to load prediction data';
-        setError(msg);
-        toast.error(msg); // <-- ADD THIS
-        setData(null);
-      })
-      .finally(() => setLoading(false));
+      } catch (err) {
+        setError('Failed to fetch prediction data');
+      }
+      setLoading(false);
+    };
+    fetchData();
   }, [getAuthHeaders]);
 
+  const normalizeDate = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d)) return dateStr;
+    return d.toISOString().slice(0, 10);
+  };
+
+  const allDates = fullDates[coin].map((d) => normalizeDate(d));
+
+  let chartDates = allDates;
+  let chartActual = actualData[coin];
+  let chartPredicted = predictedData[coin];
+  let predictionValue = null;
+  if (selectedDate) {
+    const idx = predictedData[coin].findIndex((d) => {
+      return normalizeDate(d.date) === normalizeDate(selectedDate) || d.date === selectedDate;
+    });
+    if (idx !== -1) {
+      predictionValue = predictedData[coin][idx]?.price ?? null;
+      chartDates = predictedData[coin].slice(0, idx + 1).map((d) => normalizeDate(d.date));
+      chartActual = actualData[coin].slice(0, Math.min(idx + 1, actualData[coin].length));
+      chartPredicted = predictedData[coin].slice(0, idx + 1);
+    }
+  }
+
+  const actualPrices = chartActual.map((d) => d.price);
+  const predictedPrices = chartPredicted.map((d) => d.price);
+
+  // Format x-axis labels as 'MMM D' (e.g., Aug 16)
+  const formattedChartDates = chartDates.map(date => {
+    const d = new Date(date);
+    if (isNaN(d)) return date;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  });
+
+  const chartData = {
+    labels: formattedChartDates,
+    datasets: [
+      {
+        label: 'Actual',
+        data: actualPrices,
+        borderColor: coin === 'BTC' ? '#FFA500' : '#0074D9',
+        backgroundColor: coin === 'BTC' ? 'rgba(255,165,0,0.2)' : 'rgba(0,116,217,0.2)',
+        pointRadius: 3,
+        fill: false,
+        tension: 0.2,
+      },
+      {
+        label: 'Predicted',
+        data: predictedPrices,
+        borderColor: coin === 'BTC' ? '#00BFFF' : '#2ECC40',
+        backgroundColor: coin === 'BTC' ? 'rgba(0,191,255,0.2)' : 'rgba(46,204,64,0.2)',
+        pointRadius: predictedPrices.map((_, i) => {
+          if (!selectedDate) return 0;
+          const idx = chartDates.findIndex(d => d === normalizeDate(selectedDate));
+          return i === idx ? 6 : 0;
+        }),
+        pointHoverRadius: predictedPrices.map((_, i) => {
+          if (!selectedDate) return 0;
+          const idx = chartDates.findIndex(d => d === normalizeDate(selectedDate));
+          return i === idx ? 8 : 0;
+        }),
+        borderDash: [6, 6],
+        fill: false,
+        spanGaps: true,
+        tension: 0,
+      },
+    ],
+  };
+
+  // Responsive font and tick settings
+  const isMobile = window.innerWidth < 640;
+  const fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
+  const fontSize = isMobile ? 12 : 18;
+  const legendFontSize = 20;
+  const legendPadding = isMobile ? 24 : 10;
+  const xMaxTicks = isMobile ? 3 : 7;
+  const yMaxTicks = 7;
+  const gridColor = '#334155';
+
+  const chartOptions = {
+    responsive: true,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top',
+        labels: {
+          color: '#fff',
+          font: {
+            family: fontFamily,
+            size: legendFontSize,
+            weight: 'bold',
+          },
+          padding: legendPadding,
+        },
+      },
+      title: {
+        display: false,
+      },
+      tooltip: {
+        enabled: true,
+        backgroundColor: '#232946',
+        titleColor: '#fff',
+        bodyColor: '#fff',
+        borderColor: '#fff',
+        borderWidth: 1,
+      },
+    },
+    layout: {
+      padding: {
+        right: 30,
+        left: 30,
+      },
+    },
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: 'Day',
+          align: 'center',
+          font: {
+            family: fontFamily,
+            size: fontSize,
+            weight: 'bold',
+            color: '#fff',
+          },
+          color: '#fff',
+        },
+        ticks: {
+          align: 'center',
+          font: {
+            family: fontFamily,
+            size: fontSize,
+          },
+          padding: 6,
+          color: '#fff',
+          maxTicksLimit: xMaxTicks,
+          autoSkip: true,
+          maxRotation: 0,
+          minRotation: 0,
+        },
+        grid: {
+          color: gridColor,
+          drawOnChartArea: true,
+          drawTicks: true,
+        },
+      },
+      y: {
+        title: {
+          display: true,
+          text: 'USD',
+          align: 'center',
+          font: {
+            family: fontFamily,
+            size: fontSize,
+            weight: 'bold',
+            color: '#fff',
+          },
+          color: '#fff',
+        },
+        ticks: {
+          align: 'center',
+          font: {
+            family: fontFamily,
+            size: fontSize,
+          },
+          padding: 10,
+          color: '#fff',
+          maxTicksLimit: yMaxTicks,
+          minTicksLimit: 4,
+        },
+        grid: {
+          color: gridColor,
+          drawOnChartArea: true,
+          drawTicks: true,
+        },
+      },
+    },
+  };
+
   if (loading) return <Spinner message="Loading prediction..." />;
-  if (error) return <div className="text-red-400">Error: {error}</div>;
-  if (!data) return <Spinner message="Loading prediction..." />;
-
-  // Prepare labels: use dates from backend, format as 'MMM D'
-  const btcDates = Array.isArray(data.BTC?.dates) ? data.BTC.dates : [];
-  const ethDates = Array.isArray(data.ETH?.dates) ? data.ETH.dates : [];
-  const btcLabels = btcDates.map((date, idx) => {
-    if (idx === btcDates.length - 1) return 'Next Day';
-    return isMobile
-      ? format(parseISO(date), 'MM/dd')
-      : format(parseISO(date), 'MMM d');
-  });
-  const ethLabels = ethDates.map((date, idx) => {
-    if (idx === ethDates.length - 1) return 'Next Day';
-    return format(parseISO(date), 'MMM d');
-  });
-
-  // BTC chart data
-  const btcHistory = Array.isArray(data.BTC?.history) ? data.BTC.history : [];
-  const btcPrediction = typeof data.BTC?.predicted_price === 'number' ? data.BTC?.predicted_price : null;
-
-  // 1. Detect mobile
-  const isMobileBTC = window.innerWidth < 640;
-
-  // 2. Slice data for mobile
-  const mobileSliceBTC = 7; // show last 7 points + prediction
-  const btcHistorySlice = isMobileBTC ? btcHistory.slice(-mobileSliceBTC) : btcHistory;
-  const btcDataArr = btcPrediction !== null
-    ? [...btcHistorySlice, btcPrediction]
-    : btcHistorySlice;
-  // FIX: Only slice the last N+1 labels to match data length (no concat)
-  const btcLabelsSlice = isMobileBTC
-    ? btcLabels.slice(-btcDataArr.length)
-    : btcLabels;
-
-  // 3. Point sizes
-  const btcPointRadius = Array(Math.max(0, btcDataArr.length - 1)).fill(isMobileBTC ? 7 : 3);
-  btcPointRadius.push(isMobileBTC ? 14 : 10);
-  const btcPointHoverRadius = btcPointRadius;
-
-  // Set all points to 'circle', last (prediction) to 'triangle'
-  const btcPointStyle = Array(Math.max(0, btcDataArr.length - 1)).fill('circle');
-  btcPointStyle.push('triangle');
-
-  // Set all points to orange, last (prediction) to red
-  const btcPointBackgroundColors = Array(Math.max(0, btcDataArr.length - 1)).fill('#f7931a');
-  btcPointBackgroundColors.push('#ff3b3b'); // prediction point in red
-
-  const btcYAxisObj = getEvenYAxisRange(btcDataArr, 7, 1000); // 7 ticks, round to 1000 for BTC
-  const btcYAxis = { min: btcYAxisObj.min, max: btcYAxisObj.max };
-
-  const btcChartData = {
-    labels: btcLabels,
-    datasets: [
-      {
-        label: 'BTC Price (USD)',
-        data: btcDataArr,
-        borderColor: '#f7931a',
-        backgroundColor: '#f7931a33',
-        tension: 0.2,
-        pointBackgroundColor: btcPointBackgroundColors,
-        pointRadius: btcPointRadius,
-        pointHoverRadius: btcPointHoverRadius,
-        pointStyle: btcPointStyle,
-        clip: false,
-      },
-    ],
-  };
-
-  const btcOptions = {
-    responsive: true,
-    plugins: {
-      legend: { 
-        position: 'top',
-        labels: {
-          font: {
-            size: 20,
-          },
-          color: '#fff',
-          padding: isMobile ? 24 : 10, // more space below legend on mobile
-        },
-      },
-      title: { display: false },
-      tooltip: {
-        callbacks: {
-          title: (tooltipItems) => {
-            const item = tooltipItems[0];
-            if (item.dataIndex === btcDataArr.length - 1) {
-              return 'Prediction';
-            }
-            return item.label;
-          },
-        },
-      },
-    },
-    layout: {
-      padding: {
-        right: 30,
-        left: 30,
-      },
-    },
-    scales: {
-      y: {
-        ...btcYAxis,
-        title: {
-          display: true,
-          text: 'USD',
-          align: 'center',
-          font: {
-            family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            size: isMobile ? 12 : 18, // match tick font size
-            weight: 'bold',
-            color: '#fff',
-          },
-          color: '#fff',
-        },
-        grid: {
-          color: '#334155',
-          drawOnChartArea: true,
-          drawTicks: true,
-        },
-        ticks: {
-          align: 'center',
-          font: {
-            family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            size: isMobile ? 12 : 18, // match x-axis
-          },
-          padding: 10,
-          color: '#fff',
-          callback: function(value) {
-            return value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-          },
-          stepSize: btcYAxisObj.stepSize,
-          maxTicksLimit: 7,
-          minTicksLimit: 4,
-        },
-      },
-      x: {
-        grid: {
-          color: '#334155',
-          drawOnChartArea: true,
-          drawTicks: true,
-        },
-        title: {
-          display: true,
-          text: 'Day',
-          align: 'center',
-          font: {
-            family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            size: isMobile ? 12 : 18, // match y-axis
-            weight: 'bold',
-            color: '#fff',
-          },
-          color: '#fff',
-        },
-        ticks: {
-          align: 'center',
-          font: {
-            family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            size: isMobile ? 12 : 18, // match y-axis
-          },
-          padding: 6,
-          color: '#fff',
-          maxTicksLimit: isMobile ? 3 : 7,
-          autoSkip: true,
-          maxRotation: 0,
-          minRotation: 0,
-        },
-      },
-    },
-  };
-
-  // ETH chart data
-  const ethHistory = Array.isArray(data.ETH?.history) ? data.ETH.history : [];
-  const ethPrediction = typeof data.ETH?.predicted_price === 'number' ? data.ETH?.predicted_price : null;
-
-  // 1. Detect mobile
-  const isMobileETH = window.innerWidth < 640;
-
-  // 2. Slice data for mobile
-  const mobileSliceETH = 7; // show last 7 points + prediction
-  const ethHistorySlice = isMobileETH ? ethHistory.slice(-mobileSliceETH) : ethHistory;
-  const ethDataArr = ethPrediction !== null ? [...ethHistorySlice, ethPrediction] : ethHistorySlice;
-  // FIX: Only slice the last N+1 labels to match data length (no concat)
-  const ethLabelsSlice = isMobileETH
-    ? ethLabels.slice(-ethDataArr.length)
-    : ethLabels;
-
-  // 3. Point sizes
-  const ethPointRadius = Array(Math.max(0, ethDataArr.length - 1)).fill(isMobileETH ? 7 : 3);
-  ethPointRadius.push(isMobileETH ? 14 : 10);
-  const ethPointHoverRadius = ethPointRadius;
-
-  // Set all points to 'circle', last (prediction) to 'triangle'
-  const ethPointStyle = Array(Math.max(0, ethDataArr.length - 1)).fill('circle');
-  ethPointStyle.push('triangle');
-
-  // Set all points to blue, last (prediction) to red
-  const ethPointBackgroundColors = Array(Math.max(0, ethDataArr.length - 1)).fill('#627eea');
-  ethPointBackgroundColors.push('#ff3b3b'); // prediction point in red
-
-  const ethYAxisObj = getEvenYAxisRange(ethDataArr, 7, 100); // 7 ticks, round to 100 for ETH
-  const ethYAxis = { min: ethYAxisObj.min, max: ethYAxisObj.max };
-
-  const ethChartData = {
-    labels: ethLabels,
-    datasets: [
-      {
-        label: 'ETH Price (USD)',
-        data: ethDataArr,
-        borderColor: '#627eea',
-        backgroundColor: '#627eea33',
-        tension: 0.2,
-        pointBackgroundColor: ethPointBackgroundColors,
-        pointRadius: ethPointRadius,
-        pointHoverRadius: ethPointRadius,
-        pointStyle: ethPointStyle,
-        clip: false,
-      },
-    ],
-  };
-
-  const ethOptions = {
-    responsive: true,
-    plugins: {
-      legend: { 
-        position: 'top',
-        labels: {
-          font: {
-            size: 20,
-          },
-          color: '#fff',
-          padding: isMobile ? 24 : 10, // match BTC: more space below legend on mobile
-        },
-      },
-      title: { display: false },
-      tooltip: {
-        callbacks: {
-          title: (tooltipItems) => {
-            const item = tooltipItems[0];
-            if (item.dataIndex === ethDataArr.length - 1) {
-              return 'Prediction';
-            }
-            return item.label;
-          },
-        },
-      },
-    },
-    layout: {
-      padding: {
-        right: 30,
-        left: 30,
-      },
-    },
-    scales: {
-      y: {
-        ...ethYAxis,
-        title: {
-          display: true,
-          text: 'USD',
-          align: 'center',
-          font: {
-            family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            size: isMobile ? 12 : 18, // match BTC: smaller on mobile
-            weight: 'bold',
-            color: '#fff',
-          },
-          color: '#fff',
-        },
-        grid: {
-          color: '#334155',
-          drawOnChartArea: true,
-          drawTicks: true,
-        },
-        ticks: {
-          align: 'center',
-          font: {
-            family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            size: isMobile ? 12 : 18, // match BTC: smaller on mobile
-          },
-          padding: 10,
-          color: '#fff',
-          callback: function(value) {
-            return value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-          },
-          stepSize: ethYAxisObj.stepSize,
-          maxTicksLimit: 7,
-          minTicksLimit: 4,
-        },
-      },
-      x: {
-        grid: {
-          color: '#334155',
-          drawOnChartArea: true,
-          drawTicks: true,
-        },
-        title: {
-          display: true,
-          text: 'Day',
-          align: 'center',
-          font: {
-            family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            size: isMobile ? 12 : 18, // match BTC: smaller on mobile
-            weight: 'bold',
-            color: '#fff',
-          },
-          color: '#fff',
-        },
-        ticks: {
-          align: 'center',
-          font: {
-            family: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            size: isMobile ? 12 : 18, // match BTC: smaller on mobile
-          },
-          padding: 6,
-          color: '#fff',
-          maxTicksLimit: isMobile ? 3 : 7,
-          autoSkip: true,
-          maxRotation: 0,
-          minRotation: 0,
-        },
-      },
-    },
-  };
 
   return (
     <div className="flex justify-center">
       <div className="bg-slate-800 rounded-xl shadow-lg p-2 sm:p-6 w-full text-center text-slate-100 mx-auto max-w-full sm:max-w-3xl">
-        <h2 className="text-3xl font-semibold text-center mb-8">Price Trend & Next-Day Prediction</h2>
-        <div className="flex justify-center mb-6">
-          <button
-            className={`px-6 py-2 rounded-t-lg font-semibold focus:outline-none transition-colors duration-200 ${activeTab === 'BTC' ? 'bg-slate-700 text-amber-400' : 'bg-slate-900 text-slate-300'}`}
-            onClick={() => setActiveTab('BTC')}
-          >
-            BTC
-          </button>
-          <button
-            className={`px-6 py-2 rounded-t-lg font-semibold focus:outline-none transition-colors duration-200 ${activeTab === 'ETH' ? 'bg-slate-700 text-blue-400' : 'bg-slate-900 text-slate-300'}`}
-            onClick={() => setActiveTab('ETH')}
-          >
-            ETH
-          </button>
+  <h2 className="text-2xl font-bold mb-8">Historical Price & Model Forecast</h2>
+  <div className="flex justify-center mb-4">
+          <div className="inline-flex rounded-md shadow-sm" role="group">
+            <button
+              type="button"
+              className={`px-4 py-2 text-sm font-medium ${coin === 'BTC' ? 'bg-slate-700 text-yellow-400' : 'bg-slate-900 text-slate-100'} border border-slate-600 rounded-l-md focus:outline-none`}
+              onClick={() => setCoin('BTC')}
+            >
+              BTC
+            </button>
+            <button
+              type="button"
+              className={`px-4 py-2 text-sm font-medium ${coin === 'ETH' ? 'bg-slate-700 text-blue-400' : 'bg-slate-900 text-slate-100'} border border-slate-600 rounded-r-md focus:outline-none`}
+              onClick={() => setCoin('ETH')}
+            >
+              ETH
+            </button>
+          </div>
         </div>
-        <div className={`min-h-[350px] sm:min-h-[350px]`}>
-          {activeTab === 'BTC' ? (
-            <Line
-              data={{
-                ...btcChartData,
-                labels: isMobileBTC ? btcLabelsSlice : btcLabels,
-                datasets: [
-                  {
-                    ...btcChartData.datasets[0],
-                    data: btcDataArr,
-                    pointRadius: btcPointRadius,
-                    pointHoverRadius: btcPointHoverRadius,
+        <div className="chart-container" style={{ minHeight: 350 }}>
+          <div style={{ marginBottom: '32px' }}>
+            <Line data={chartData} options={{
+              ...chartOptions,
+              plugins: {
+                ...chartOptions.plugins,
+                legend: {
+                  ...chartOptions.plugins.legend,
+                  labels: {
+                    ...chartOptions.plugins.legend.labels,
+                    padding: 20,
                   },
-                ],
-              }}
-              options={btcOptions}
-            />
-          ) : (
-            <Line
-              data={{
-                ...ethChartData,
-                labels: isMobileETH ? ethLabelsSlice : ethLabels,
-                datasets: [
-                  {
-                    ...ethChartData.datasets[0],
-                    data: ethDataArr,
-                    pointRadius: ethPointRadius,
-                    pointHoverRadius: ethPointHoverRadius,
-                  },
-                ],
-              }}
-              options={ethOptions}
-            />
-          )}
+                },
+              },
+              layout: {
+                ...chartOptions.layout,
+                padding: {
+                  ...chartOptions.layout?.padding,
+                  top: 0,
+                },
+              },
+            }} />
+          </div>
         </div>
+        <div className="mt-6 flex flex-col items-center">
+          <label
+            htmlFor="date-picker"
+            className="block text-lg font-semibold text-white mb-2 tracking-wide"
+            style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
+          >
+            Select a date to predict
+          </label>
+          <input
+            id="date-picker"
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            min={allDates.length > 0 ? allDates[0] : ''}
+            max={allDates.length > 0 ? allDates[allDates.length - 1] : ''}
+            className="px-4 py-2 rounded-md bg-[#232946] text-white border-none text-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-400"
+            style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', width: 'fit-content' }}
+          />
+        </div>
+        {selectedDate && (
+          <div className="mt-6 flex flex-col items-center gap-2">
+            <div className="text-base font-semibold text-white tracking-wide" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>
+              Prediction for {selectedDate}
+            </div>
+            <div className="flex flex-row gap-6">
+              <div
+                className={`bg-slate-700 rounded-lg px-4 py-2 text-lg font-mono shadow ${
+                  coin === 'BTC'
+                    ? 'text-[#FFA500]'
+                    : 'text-[#00BFFF]'
+                }`}
+              >
+                {coin} Actual: {(() => {
+                  const idx = actualData[coin].findIndex(d => normalizeDate(d.date) === normalizeDate(selectedDate));
+                  const actualPrice = idx !== -1 ? actualData[coin][idx]?.price : null;
+                  return actualPrice !== null ? `$${actualPrice}` : 'N/A';
+                })()}
+              </div>
+              <div
+                className={`bg-slate-700 rounded-lg px-4 py-2 text-lg font-mono shadow ${
+                  coin === 'BTC'
+                    ? 'text-[#00BFFF]'
+                    : 'text-[#2ECC40]'
+                }`}
+              >
+                {coin} Predicted: {predictionValue !== null ? `$${predictionValue}` : 'N/A'}
+              </div>
+            </div>
+          </div>
+        )}
+        {error && <div className="text-red-400 mt-2">{error}</div>}
       </div>
     </div>
   );
