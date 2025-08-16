@@ -26,7 +26,7 @@ The MVP includes:
     - TextBlob - for sentiment analysis
 
 **APIs:**
-    - CoinGecko - for real-time crypto price data
+    - Yahoo Finance - for real-time crypto price data
     - Reddit API or sample JSON - for community sentiment
 
 **DevOps / Hosting:**
