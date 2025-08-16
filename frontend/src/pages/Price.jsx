@@ -55,37 +55,39 @@ export default function Price() {
   }
 
   return (
-    <div className="w-full h-full">
-      <div className="bg-slate-800 rounded-xl shadow-lg p-6 w-full h-full text-center text-slate-100">
-        <h2 className="text-2xl font-semibold mb-4">Live Prices</h2>
-        <div className="text-sm text-slate-400 mb-3">
-          {isRefreshing ? (
-            <span className="animate-spin inline-block mr-1">🔄</span>
+    <div className="flex flex-col items-center justify-center min-h-screen mt-20">
+      <div className="w-full h-full">
+        <div className="bg-slate-800 rounded-xl shadow-lg p-6 w-full h-full text-center text-slate-100">
+          <h2 className="text-2xl font-semibold mb-4">Live Prices</h2>
+          <div className="text-sm text-slate-400 mb-3">
+            {isRefreshing ? (
+              <span className="animate-spin inline-block mr-1">🔄</span>
+            ) : (
+              <span>Last updated {lastUpdated ? timeSinceUpdate : '?'}s ago</span>
+            )}
+            {lastUpdated && Date.now() - lastUpdated > 30000 && (
+              <div className="text-red-400 text-xs mt-1">
+                Data is over 30 seconds old. Check your network or API limits.
+              </div>
+            )}
+          </div>
+          {price?.bitcoin?.usd && price?.ethereum?.usd ? (
+            <>
+              <p className="text-lg text-slate-200 mb-2">
+                <span className="font-semibold text-amber-400">Bitcoin (BTC):</span>{' '}
+                ${price.bitcoin.usd}
+              </p>
+              <p className="text-lg text-slate-200">
+                <span className="font-semibold text-blue-400">Ethereum (ETH):</span>{' '}
+                ${price.ethereum.usd}
+              </p>
+            </>
+          ) : price ? (
+            <p className="text-red-400 italic">API rate limit exceeded or data unavailable.</p>
           ) : (
-            <span>Last updated {lastUpdated ? timeSinceUpdate : '?'}s ago</span>
-          )}
-          {lastUpdated && Date.now() - lastUpdated > 30000 && (
-            <div className="text-red-400 text-xs mt-1">
-              Data is over 30 seconds old. Check your network or API limits.
-            </div>
+            <Spinner message="Loading live prices..." />
           )}
         </div>
-        {price?.bitcoin?.usd && price?.ethereum?.usd ? (
-          <>
-            <p className="text-lg text-slate-200 mb-2">
-              <span className="font-semibold text-amber-400">Bitcoin (BTC):</span>{' '}
-              ${price.bitcoin.usd}
-            </p>
-            <p className="text-lg text-slate-200">
-              <span className="font-semibold text-blue-400">Ethereum (ETH):</span>{' '}
-              ${price.ethereum.usd}
-            </p>
-          </>
-        ) : price ? (
-          <p className="text-red-400 italic">API rate limit exceeded or data unavailable.</p>
-        ) : (
-          <Spinner message="Loading live prices..." />
-        )}
       </div>
     </div>
   );

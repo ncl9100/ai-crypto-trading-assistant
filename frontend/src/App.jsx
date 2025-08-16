@@ -147,7 +147,7 @@ function AppContent() {
           path="/"
           element={
             <ProtectedRoute>
-              <div className="p-6 md:p-10 text-center text-slate-100">
+              <div className="p-6 md:p-10 text-center text-slate-100 mt-20">
                 <h1 className="text-4xl font-bold flex items-center justify-center gap-3 mb-2">
                   <FaChartLine className="text-indigo-400" />
                   Crypto Dashboard

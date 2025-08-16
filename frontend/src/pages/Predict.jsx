@@ -265,7 +265,7 @@ const Predict = () => {
   if (loading) return <Spinner message="Loading prediction..." />;
 
   return (
-    <div className="flex justify-center">
+    <div className="flex justify-center mt-20">
       <div className="bg-slate-800 rounded-xl shadow-lg p-2 sm:p-6 w-full text-center text-slate-100 mx-auto max-w-full sm:max-w-3xl">
         <h2 className="text-2xl font-bold mb-8">Historical Price & Model Forecast</h2>
         <div className="flex justify-center mb-4">
