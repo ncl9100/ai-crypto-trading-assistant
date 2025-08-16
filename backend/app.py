@@ -54,7 +54,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)  # creates flask app named app
-CORS(app)  # enables CORS for the Flask app
+CORS(app, origins=["https://ai-crypto-trading-assistant.vercel.app"])  # enables CORS for the Flask app
 
 # JWT Configuration
 app.config['SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
