@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useRef } from 'react';
 import axios from 'axios';
 import { Line } from 'react-chartjs-2';
 import {
@@ -142,11 +143,17 @@ const Predict = () => {
   };
 
   // Responsive font and tick settings
-  const isMobile = window.innerWidth < 640;
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+  const chartContainerRef = useRef(null);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace';
   const fontSize = isMobile ? 12 : 18;
-  const legendFontSize = 20;
-  const legendPadding = isMobile ? 24 : 10;
+  const legendFontSize = isMobile ? 13 : 20;
+  const legendPadding = isMobile ? 8 : 10;
   const xMaxTicks = isMobile ? 3 : 7;
   const yMaxTicks = 7;
   const gridColor = '#334155';
@@ -181,8 +188,10 @@ const Predict = () => {
     },
     layout: {
       padding: {
-        right: 30,
-        left: 30,
+        right: isMobile ? 10 : 30,
+        left: isMobile ? 10 : 30,
+        top: 0,
+        bottom: isMobile ? 0 : 0,
       },
     },
     scales: {
@@ -256,8 +265,8 @@ const Predict = () => {
   return (
     <div className="flex justify-center">
       <div className="bg-slate-800 rounded-xl shadow-lg p-2 sm:p-6 w-full text-center text-slate-100 mx-auto max-w-full sm:max-w-3xl">
-  <h2 className="text-2xl font-bold mb-8">Historical Price & Model Forecast</h2>
-  <div className="flex justify-center mb-4">
+        <h2 className="text-2xl font-bold mb-8">Historical Price & Model Forecast</h2>
+        <div className="flex justify-center mb-4">
           <div className="inline-flex rounded-md shadow-sm" role="group">
             <button
               type="button"
@@ -275,9 +284,30 @@ const Predict = () => {
             </button>
           </div>
         </div>
-        <div className="chart-container" style={{ minHeight: 350 }}>
-          <div style={{ marginBottom: '32px' }}>
-            <Line data={chartData} options={{
+        <div
+          ref={chartContainerRef}
+          className="chart-container"
+          style={{
+            minHeight: isMobile ? 260 : 350,
+            height: isMobile ? 260 : 'auto',
+            marginBottom: isMobile ? '0px' : '32px',
+            marginTop: isMobile ? '0px' : '0px',
+            width: '100%',
+            maxWidth: isMobile ? '100vw' : '100%',
+            paddingBottom: isMobile ? '0px' : undefined,
+          }}
+        >
+          <Line
+            key={isMobile ? 'mobile' : 'desktop'}
+            data={{
+              ...chartData,
+              datasets: chartData.datasets.map((ds, idx) => ({
+                ...ds,
+                pointRadius: isMobile ? 0 : ds.pointRadius,
+                pointHoverRadius: isMobile ? 0 : ds.pointHoverRadius,
+              })),
+            }}
+            options={{
               ...chartOptions,
               plugins: {
                 ...chartOptions.plugins,
@@ -285,7 +315,11 @@ const Predict = () => {
                   ...chartOptions.plugins.legend,
                   labels: {
                     ...chartOptions.plugins.legend.labels,
-                    padding: 20,
+                    font: {
+                      ...chartOptions.plugins.legend.labels.font,
+                      size: legendFontSize,
+                    },
+                    padding: legendPadding,
                   },
                 },
               },
@@ -294,12 +328,13 @@ const Predict = () => {
                 padding: {
                   ...chartOptions.layout?.padding,
                   top: 0,
+                  bottom: isMobile ? 0 : 0,
                 },
               },
-            }} />
-          </div>
+            }}
+          />
         </div>
-        <div className="mt-6 flex flex-col items-center">
+  <div className={isMobile ? "mt-0 flex flex-col items-center" : "mt-6 flex flex-col items-center"} style={isMobile ? {paddingBottom: 0, marginBottom: 0} : {}}>
           <label
             htmlFor="date-picker"
             className="block text-lg font-semibold text-white mb-2 tracking-wide"
@@ -319,7 +354,7 @@ const Predict = () => {
           />
         </div>
         {selectedDate && (
-          <div className="mt-6 flex flex-col items-center gap-2">
+          <div className={isMobile ? "mt-2 flex flex-col items-center gap-2" : "mt-6 flex flex-col items-center gap-2"}>
             <div className="text-base font-semibold text-white tracking-wide" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>
               Prediction for {selectedDate}
             </div>
