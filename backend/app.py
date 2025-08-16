@@ -836,10 +836,11 @@ def cache_status():
     }
     return jsonify(cache_info)
 
-if __name__ == '__main__':  # this line checks if the script is being run directly
-    # If so, it starts the Flask application.
+if __name__ == '__main__':
+    import os
+    port = int(os.environ.get("PORT", 5000))
     logger.info("Starting AI-Powered Crypto Trading Assistant Backend...")
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=port, debug=True)
 
 # This is a simple Flask application that responds to a ping request.
 # It defines routes like `/ping`, `/price`, `/predict`, and `/sentiment`.
