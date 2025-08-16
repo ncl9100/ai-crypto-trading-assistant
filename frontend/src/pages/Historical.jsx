@@ -37,7 +37,8 @@ const Historical = () => {
   const fetchHistoricalData = (selectedTimeframe) => {
     setIsLoading(true);
     setError(null);
-    axios.get(`http://localhost:5000/historical?timeframe=${selectedTimeframe}`, {
+  const API_URL = import.meta.env.VITE_API_URL;
+  axios.get(`${API_URL}/historical?timeframe=${selectedTimeframe}`, {
       headers: getAuthHeaders()
     })
       .then(res => {

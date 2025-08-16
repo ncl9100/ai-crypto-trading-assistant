@@ -25,7 +25,7 @@ ChartJS.register(
   Legend
 );
 
-const BACKEND_URL = 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const Predict = () => {
   const { getAuthHeaders } = useAuth();
@@ -47,7 +47,7 @@ const Predict = () => {
       try {
         const headers = getAuthHeaders();
         const response = await axios.get(
-          `${BACKEND_URL}/predict?window=30`,
+          `${API_URL}/predict?window=30`,
           { headers }
         );
         const result = response.data;

@@ -14,7 +14,8 @@ export default function Recommendation() {
     const fetchRecommendation = async () => {
       try {
         setLoading(true);
-        const response = await axios.get('http://localhost:5000/recommendation', {
+  const API_URL = import.meta.env.VITE_API_URL;
+  const response = await axios.get(`${API_URL}/recommendation`, {
           headers: getAuthHeaders()
         });
         setRecommendation(response.data);

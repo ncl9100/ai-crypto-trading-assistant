@@ -45,7 +45,8 @@ export default function Sentiment() {
   useEffect(() => {
     if (!sentiment) {
       setLoading(true);
-      fetch('http://localhost:5000/sentiment', {
+  const API_URL = import.meta.env.VITE_API_URL;
+  fetch(`${API_URL}/sentiment`, {
         headers: getAuthHeaders()
       })
         .then(res => {
