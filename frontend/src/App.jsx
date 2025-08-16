@@ -30,7 +30,8 @@ function AppContent() {
   useEffect(() => {
     if (!isAuthenticated()) return;
     
-    axios.get('http://localhost:5000/predict', {
+    const API_URL = import.meta.env.VITE_API_URL;
+    axios.get(`${API_URL}/predict`, {
       headers: getAuthHeaders()
     })
       .then(res => {
