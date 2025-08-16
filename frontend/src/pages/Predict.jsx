@@ -30,6 +30,8 @@ const API_URL = import.meta.env.VITE_API_URL;
 const Predict = () => {
   const { getAuthHeaders } = useAuth();
   const [coin, setCoin] = useState('BTC');
+  // Format price to 2 decimal places
+  const formatPrice = (price) => typeof price === 'number' ? price.toFixed(2) : price;
   const [actualData, setActualData] = useState({ BTC: [], ETH: [] });
   const [predictedData, setPredictedData] = useState({ BTC: [], ETH: [] });
   const [fullDates, setFullDates] = useState({ BTC: [], ETH: [] });
@@ -52,12 +54,12 @@ const Predict = () => {
         );
         const result = response.data;
         setActualData({
-          BTC: (result.BTC.dates || []).map((date, i) => ({ date, price: result.BTC.actual[i] })),
-          ETH: (result.ETH.dates || []).map((date, i) => ({ date, price: result.ETH.actual[i] })),
+          BTC: (result.BTC.dates || []).map((date, i) => ({ date, price: formatPrice(result.BTC.actual[i]) })),
+          ETH: (result.ETH.dates || []).map((date, i) => ({ date, price: formatPrice(result.ETH.actual[i]) })),
         });
         setPredictedData({
-          BTC: (result.BTC.dates || []).map((date, i) => ({ date, price: result.BTC.predicted[i] })),
-          ETH: (result.ETH.dates || []).map((date, i) => ({ date, price: result.ETH.predicted[i] })),
+          BTC: (result.BTC.dates || []).map((date, i) => ({ date, price: formatPrice(result.BTC.predicted[i]) })),
+          ETH: (result.ETH.dates || []).map((date, i) => ({ date, price: formatPrice(result.ETH.predicted[i]) })),
         });
         setFullDates({
           BTC: result.BTC.dates || [],
