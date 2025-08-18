@@ -30,7 +30,8 @@ function AppContent() {
   useEffect(() => {
     if (!isAuthenticated()) return;
     
-    axios.get('http://localhost:5000/predict', {
+    const API_URL = import.meta.env.VITE_API_URL;
+    axios.get(`${API_URL}/predict`, {
       headers: getAuthHeaders()
     })
       .then(res => {
@@ -130,7 +131,8 @@ function AppContent() {
            });
         }
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error('Error fetching prediction data:', error);
         setBtcChartData(null);
         setEthChartData(null);
       });
@@ -177,43 +179,35 @@ function AppContent() {
                         </button>
                       </div>
                       {activeDashboardTab === 'BTC' ? (
-                        btcChartData ? (
-                          <MiniTrendChart
-                            actual={(() => {
-                              if (!btcRawResponse || !btcRawResponse.actual || !btcRawResponse.dates) return [];
-                              return btcRawResponse.actual
-                                .map((price, i) => ({ date: btcRawResponse.dates[i], price }))
-                                .filter(d => d.price !== null);
-                            })()}
-                            predicted={(() => {
-                              if (!btcRawResponse || !btcRawResponse.predicted || !btcRawResponse.dates) return [];
-                              return btcRawResponse.predicted.map((price, i) => ({ date: btcRawResponse.dates[i], price }));
-                            })()}
-                            coin="BTC"
-                            loading={!btcChartData}
-                          />
-                        ) : (
-                          <div className="text-slate-400 italic">Loading...</div>
-                        )
+                        <MiniTrendChart
+                          actual={(() => {
+                            if (!btcRawResponse || !btcRawResponse.actual || !btcRawResponse.dates) return [];
+                            return btcRawResponse.actual
+                              .map((price, i) => ({ date: btcRawResponse.dates[i], price }))
+                              .filter(d => d.price !== null);
+                          })()}
+                          predicted={(() => {
+                            if (!btcRawResponse || !btcRawResponse.predicted || !btcRawResponse.dates) return [];
+                            return btcRawResponse.predicted.map((price, i) => ({ date: btcRawResponse.dates[i], price }));
+                          })()}
+                          coin="BTC"
+                          loading={!btcRawResponse}
+                        />
                       ) : (
-                        ethChartData ? (
-                          <MiniTrendChart
-                            actual={(() => {
-                              if (!ethRawResponse || !ethRawResponse.actual || !ethRawResponse.dates) return [];
-                              return ethRawResponse.actual
-                                .map((price, i) => ({ date: ethRawResponse.dates[i], price }))
-                                .filter(d => d.price !== null);
-                            })()}
-                            predicted={(() => {
-                              if (!ethRawResponse || !ethRawResponse.predicted || !ethRawResponse.dates) return [];
-                              return ethRawResponse.predicted.map((price, i) => ({ date: ethRawResponse.dates[i], price }));
-                            })()}
-                            coin="ETH"
-                            loading={!ethChartData}
-                          />
-                        ) : (
-                          <div className="text-slate-400 italic">Loading...</div>
-                        )
+                        <MiniTrendChart
+                          actual={(() => {
+                            if (!ethRawResponse || !ethRawResponse.actual || !ethRawResponse.dates) return [];
+                            return ethRawResponse.actual
+                              .map((price, i) => ({ date: ethRawResponse.dates[i], price }))
+                              .filter(d => d.price !== null);
+                          })()}
+                          predicted={(() => {
+                            if (!ethRawResponse || !ethRawResponse.predicted || !ethRawResponse.dates) return [];
+                            return ethRawResponse.predicted.map((price, i) => ({ date: ethRawResponse.dates[i], price }));
+                          })()}
+                          coin="ETH"
+                          loading={!ethRawResponse}
+                        />
                       )}
                       {/* Debug output removed */}
                     </div>

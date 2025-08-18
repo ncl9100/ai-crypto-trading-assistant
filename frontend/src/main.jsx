@@ -3,6 +3,26 @@ import { createRoot } from 'react-dom/client' // createRoot is used to render th
 import { BrowserRouter } from 'react-router-dom'  
 import './index.css'
 import App from './App.jsx'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+} from 'chart.js'
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+)
 
 createRoot(document.getElementById('root')).render( // createRoot renders the React application into the root element
   <BrowserRouter> {/* BrowserRouter enables routing in the application */ }
