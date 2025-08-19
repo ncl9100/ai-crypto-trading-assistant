@@ -37,7 +37,7 @@ const Historical = () => {
   const fetchHistoricalData = (selectedTimeframe) => {
     setIsLoading(true);
     setError(null);
-  const API_URL = import.meta.env.VITE_API_URL;
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
   axios.get(`${API_URL}/historical?timeframe=${selectedTimeframe}`, {
       headers: getAuthHeaders()
     })
@@ -69,27 +69,68 @@ const Historical = () => {
   // Sample data based on timeframe to prevent overcrowding
   const sampleData = (dates, prices, timeframe) => {
     const totalPoints = dates.length;
-    let step = 1;
     
-    if (timeframe === '7d') {
-      step = 1; // Show all points for 7 days
-    } else if (timeframe === '30d') {
-      step = Math.max(1, Math.floor(totalPoints / 15)); // Max 15 points
-    } else if (timeframe === '6m') {
-      step = Math.max(1, Math.floor(totalPoints / 20)); // Max 20 points
-    } else if (timeframe === '1y') {
-      step = Math.max(1, Math.floor(totalPoints / 25)); // Max 25 points
+    // For 6-month and 1-year views, sample to show consistent monthly data
+    if (timeframe === '6m' || timeframe === '1y') {
+      const sampledDates = [];
+      const sampledPrices = [];
+      
+      // For 6-month view: show last day of each month
+      if (timeframe === '6m') {
+        const monthsToShow = 6;
+        const step = Math.max(1, Math.floor(totalPoints / monthsToShow));
+        
+        for (let i = 0; i < totalPoints; i += step) {
+          sampledDates.push(dates[i]);
+          sampledPrices.push(prices[i]);
+        }
+      }
+      // For 1-year view: show last day of each month
+      else if (timeframe === '1y') {
+        const monthsToShow = 12;
+        const step = Math.max(1, Math.floor(totalPoints / monthsToShow));
+        
+        for (let i = 0; i < totalPoints; i += step) {
+          sampledDates.push(dates[i]);
+          sampledPrices.push(prices[i]);
+        }
+      }
+      
+      // Always include the last point if not already included
+      if (sampledDates[sampledDates.length - 1] !== dates[dates.length - 1]) {
+        sampledDates.push(dates[dates.length - 1]);
+        sampledPrices.push(prices[prices.length - 1]);
+      }
+      
+      return { sampledDates, sampledPrices };
     }
+    
+    // For shorter timeframes, use the original logic
+    let maxPoints;
+    if (timeframe === '7d') {
+      maxPoints = totalPoints; // Show all points for 7 days
+    } else if (timeframe === '30d') {
+      maxPoints = 15; // Max 15 points for 30 days
+    }
+    
+    // If we have fewer points than max, return all data
+    if (totalPoints <= maxPoints) {
+      return { sampledDates: dates, sampledPrices: prices };
+    }
+    
+    // Calculate step to get desired number of points
+    const step = Math.floor(totalPoints / maxPoints);
     
     const sampledDates = [];
     const sampledPrices = [];
     
+    // Sample data with step
     for (let i = 0; i < totalPoints; i += step) {
       sampledDates.push(dates[i]);
       sampledPrices.push(prices[i]);
     }
     
-    // Always include the last point
+    // Always include the last point if not already included
     if (sampledDates[sampledDates.length - 1] !== dates[dates.length - 1]) {
       sampledDates.push(dates[dates.length - 1]);
       sampledPrices.push(prices[prices.length - 1]);
@@ -100,11 +141,15 @@ const Historical = () => {
 
   const { sampledDates, sampledPrices } = sampleData(activeData.dates, activeData.prices, timeframe);
 
-  // Prepare chart data
+  // Prepare chart data with appropriate date format based on timeframe
   const labels = sampledDates.map((date, idx) => {
-    if (idx === 0) return `${timeframe === '7d' ? '7 days ago' : timeframe === '30d' ? '30 days ago' : timeframe === '6m' ? '6 months ago' : '1 year ago'}`;
-    if (idx === sampledDates.length - 1) return 'Today';
-    return format(parseISO(date), 'MMM d');
+    if (timeframe === '1y') {
+      return format(parseISO(date), 'MMM yyyy'); // Show year for 1-year view
+    } else if (timeframe === '6m') {
+      return format(parseISO(date), 'MMM yyyy'); // Show year for 6-month view too
+    } else {
+      return format(parseISO(date), 'MMM d'); // Show month and day for shorter views
+    }
   });
 
   const chartData = {
@@ -116,7 +161,7 @@ const Historical = () => {
         borderColor: activeTab === 'BTC' ? '#f7931a' : '#627eea',
         backgroundColor: activeTab === 'BTC' ? '#f7931a33' : '#627eea33',
         tension: 0.1,
-        pointRadius: timeframe === '7d' ? 4 : timeframe === '30d' ? 3 : 2,
+        pointRadius: timeframe === '7d' ? 4 : timeframe === '30d' ? 3 : timeframe === '6m' ? 2 : 1,
         pointHoverRadius: 6,
       },
     ],
@@ -148,6 +193,12 @@ const Historical = () => {
         borderColor: '#374151',
         borderWidth: 1,
         callbacks: {
+          title: function(context) {
+            // Show full date in tooltip regardless of timeframe
+            const dateIndex = context[0].dataIndex;
+            const actualDate = sampledDates[dateIndex];
+            return format(parseISO(actualDate), 'MMMM d, yyyy'); // e.g., "August 15, 2025"
+          },
           label: function(context) {
             return `${context.dataset.label}: $${context.parsed.y.toLocaleString()}`;
           }
@@ -185,19 +236,42 @@ const Historical = () => {
           callback: function(value) {
             return '$' + value.toLocaleString();
           },
-          stepSize: activeTab === 'BTC' ? 20000 : 500,
+          // Dynamic step size based on price range and currency
+          stepSize: function() {
+            const maxPrice = Math.max(...sampledPrices);
+            const minPrice = Math.min(...sampledPrices);
+            const priceRange = maxPrice - minPrice;
+            
+            if (activeTab === 'BTC') {
+              // Target 4-8 gridlines
+              if (priceRange > 50000) return 15000;
+              if (priceRange > 25000) return 7500;
+              if (priceRange > 15000) return 5000;
+              if (priceRange > 10000) return 3000;
+              if (priceRange > 5000) return 2000;
+              return 1500;
+            } else { // ETH
+              // Target 4-8 gridlines
+              if (priceRange > 2000) return 750;
+              if (priceRange > 1000) return 500;
+              if (priceRange > 500) return 250;
+              if (priceRange > 200) return 100;
+              return 50;
+            }
+          }(),
           autoSkip: false,
           maxTicksLimit: 15
         },
         grid: { 
           color: '#374151',
-          drawBorder: false
+          drawBorder: false,
+          display: true
         }
       }
     },
             elements: {
           point: {
-            radius: timeframe === '7d' ? 4 : timeframe === '30d' ? 3 : 2,
+            radius: timeframe === '7d' ? 4 : timeframe === '30d' ? 3 : timeframe === '6m' ? 2 : 1,
             hoverRadius: 6
           },
           line: {

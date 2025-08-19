@@ -54,7 +54,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)  # creates flask app named app
-CORS(app, origins=["https://ai-crypto-trading-assistant.vercel.app"])  # enables CORS for the Flask app
+CORS(app, origins=["https://ai-crypto-trading-assistant.vercel.app", "http://localhost:5173"])  # enables CORS for the Flask app
 
 # JWT Configuration
 app.config['SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')
@@ -807,10 +807,31 @@ def historical():
             results[symbol] = {'error': 'Not enough historical data'}
             continue
 
-        # Only keep the last N days
-        sliced = historical_data[-days_requested:]
-        dates = [datetime.utcfromtimestamp(p[0] / 1000).strftime('%Y-%m-%d') for p in sliced]
-        price_history = [p[1] for p in sliced]
+        # Get more data than requested to ensure we have enough after deduplication
+        # Take extra days to account for potential missing data
+        extra_days = days_requested + 3  # Get 3 extra days to be safe
+        sliced = historical_data[-extra_days:]
+        
+        # Deduplicate by date - keep only the latest price for each date
+        date_price_map = {}
+        for p in sliced:
+            date = datetime.utcfromtimestamp(p[0] / 1000).strftime('%Y-%m-%d')
+            # Keep the latest price for each date
+            date_price_map[date] = p[1]
+        
+        # Sort by date and extract unique dates and prices
+        sorted_items = sorted(date_price_map.items())
+        all_dates = [item[0] for item in sorted_items]
+        all_prices = [item[1] for item in sorted_items]
+        
+        # Take only the last N days that were requested
+        if len(all_dates) >= days_requested:
+            dates = all_dates[-days_requested:]
+            price_history = all_prices[-days_requested:]
+        else:
+            # If we don't have enough data, use what we have
+            dates = all_dates
+            price_history = all_prices
 
         results[symbol] = {
             'symbol': symbol,

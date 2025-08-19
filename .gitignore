@@ -28,3 +28,7 @@ __pycache__/
 
 # Ignore backend environment file
 backend/.env
+
+# Ignore frontend environment files
+frontend/.env.development
+frontend/.env.production

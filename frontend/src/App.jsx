@@ -30,7 +30,18 @@ function AppContent() {
   useEffect(() => {
     if (!isAuthenticated()) return;
     
-    const API_URL = import.meta.env.VITE_API_URL;
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    console.log('🔍 Environment Debug:', {
+      VITE_API_URL: import.meta.env.VITE_API_URL,
+      MODE: import.meta.env.MODE,
+      DEV: import.meta.env.DEV,
+      API_URL: API_URL
+    });
+    
+    // Alert for debugging (remove this later)
+    if (!import.meta.env.VITE_API_URL) {
+      console.warn('⚠️ VITE_API_URL is undefined! Check your .env.development file');
+    }
     axios.get(`${API_URL}/predict`, {
       headers: getAuthHeaders()
     })

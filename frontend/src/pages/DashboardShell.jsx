@@ -9,7 +9,7 @@ export default function DashboardShell({ children }) { /* anything inside Dashbo
       <Header />
 
       {/* Page Content */}
-      <main className="flex-grow px-4 py-8">
+      <main className="flex-grow px-4 py-8 pt-24">
         <div className="w-full max-w-6xl mx-auto">
           {children} {/* This is where the child components will be rendered */}
         </div>
