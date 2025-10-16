@@ -17,6 +17,7 @@ import Historical from './pages/Historical.jsx';
 import Recommendation from './pages/Recommendation.jsx';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { Analytics } from '@vercel/analytics/react';
 
 function AppContent() {
   // Prepare BTC and ETH chart data for dashboard card
@@ -247,6 +248,7 @@ function App() {
     <AuthProvider>
       <ToastContainer position="top-right" autoClose={4000} />
       <AppContent />
+      <Analytics />
     </AuthProvider>
   );
 }
