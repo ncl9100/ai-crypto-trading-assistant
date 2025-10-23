@@ -8,7 +8,6 @@ The MVP includes:
     - Connecting frontend and backend via a '/ping' test endpoint
     - Fetch real-time crypto price data using the Yahoo Finance API
     - Display prices in a simple chart on the frontend
-    - Placeholder for AI-generated trading suggestions
 
 ## Tech Stack
 
@@ -38,6 +37,7 @@ The MVP includes:
 **Testing:**
     - Pytest - for backend unit testing
     - Jest & React Testing Library - for frontend testing
+
 
 
 
